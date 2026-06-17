@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/dashboard/summary", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -135,7 +135,7 @@ router.get("/dashboard/summary", async (req, res) => {
 
 router.get("/dashboard/kpis", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -174,7 +174,7 @@ router.get("/dashboard/kpis", async (req, res) => {
 
 router.get("/dashboard/platform-comparison", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -225,7 +225,7 @@ router.get("/dashboard/platform-comparison", async (req, res) => {
 
 router.get("/dashboard/spend-trend", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -267,7 +267,7 @@ router.get("/dashboard/spend-trend", async (req, res) => {
 
 router.get("/dashboard/ai-insights", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)

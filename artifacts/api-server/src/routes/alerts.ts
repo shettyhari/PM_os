@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/alerts", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { status } = req.query as Record<string, string>;
 
     let alerts = await db
@@ -27,7 +27,7 @@ router.get("/alerts", async (req, res) => {
 
 router.post("/alerts", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { type, title, message, severity, campaignId } = req.body as Record<string, string>;
 
     const [created] = await db
@@ -44,7 +44,7 @@ router.post("/alerts", async (req, res) => {
 
 router.patch("/alerts/:id/read", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const id = parseInt(req.params["id"]!);
 
     const [updated] = await db

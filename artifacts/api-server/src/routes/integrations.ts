@@ -55,7 +55,7 @@ const PLATFORM_META: Record<
 
 router.get("/integrations", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
 
     const tokens = await db
       .select()

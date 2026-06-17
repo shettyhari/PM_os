@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export const oauthPlatformEnum = pgEnum("oauth_platform", [
@@ -10,7 +10,7 @@ export const oauthPlatformEnum = pgEnum("oauth_platform", [
 
 export const oauthTokensTable = pgTable("oauth_tokens", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id")
+  userId: varchar("user_id")
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   platform: oauthPlatformEnum("platform").notNull(),

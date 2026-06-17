@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, integer, varchar, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -8,7 +8,7 @@ export const campaignStatusEnum = pgEnum("campaign_status", ["active", "paused",
 
 export const campaignsTable = pgTable("campaigns", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   externalId: text("external_id"),
   name: text("name").notNull(),
   platform: platformEnum("platform").notNull(),

@@ -58,7 +58,7 @@ function getAppBaseUrl(): string {
 // GET /oauth/status
 router.get("/oauth/status", requireAuth, async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const tokens = await db
       .select({
         platform: oauthTokensTable.platform,
@@ -107,10 +107,10 @@ router.get("/oauth/initiate/:platform", requireAuth, (req, res) => {
   }
 
   const state = Buffer.from(
-    JSON.stringify({ userId: req.session.userId, platform, ts: Date.now() }),
+    JSON.stringify({ userId: req.user!.id, platform, ts: Date.now() }),
   ).toString("base64url");
 
-  req.session.oauthState = state;
+  
 
   const callbackUrl = `${getAppBaseUrl()}/api/oauth/callback/${platform}`;
 
@@ -149,10 +149,10 @@ router.get("/oauth/callback/:platform", async (req, res) => {
     return;
   }
 
-  let userId: number;
+  let userId: string;
   try {
     const decoded = JSON.parse(Buffer.from(state, "base64url").toString()) as {
-      userId: number;
+      userId: string;
       platform: string;
       ts: number;
     };
@@ -238,7 +238,7 @@ router.get("/oauth/callback/:platform", async (req, res) => {
 // DELETE /oauth/disconnect/:platform
 router.delete("/oauth/disconnect/:platform", requireAuth, async (req, res) => {
   const platform = req.params["platform"] as PlatformKey;
-  const userId = req.session.userId!;
+  const userId = req.user!.id;
 
   try {
     await db
@@ -269,7 +269,7 @@ router.delete("/oauth/disconnect/:platform", requireAuth, async (req, res) => {
 // POST /oauth/sync/:platform
 router.post("/oauth/sync/:platform", requireAuth, async (req, res) => {
   const platform = req.params["platform"] as PlatformKey;
-  const userId = req.session.userId!;
+  const userId = req.user!.id;
 
   try {
     const [token] = await db
@@ -301,7 +301,7 @@ router.post("/oauth/sync/:platform", requireAuth, async (req, res) => {
 // ─── Platform Sync Functions ──────────────────────────────────────────────────
 
 async function syncPlatformData(
-  userId: number,
+  userId: string,
   platform: PlatformKey,
   accessToken: string,
 ): Promise<void> {
@@ -322,7 +322,7 @@ async function syncPlatformData(
 }
 
 async function upsertCampaign(
-  userId: number,
+  userId: string,
   externalId: string,
   values: Omit<typeof campaignsTable.$inferInsert, "id" | "createdAt" | "updatedAt">,
 ): Promise<void> {
@@ -343,7 +343,7 @@ async function upsertCampaign(
   }
 }
 
-async function syncGoogleAds(userId: number, accessToken: string): Promise<void> {
+async function syncGoogleAds(userId: string, accessToken: string): Promise<void> {
   const developerToken = process.env["GOOGLE_ADS_DEVELOPER_TOKEN"];
   if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not set");
 
@@ -432,7 +432,7 @@ async function syncGoogleAds(userId: number, accessToken: string): Promise<void>
   }
 }
 
-async function syncMetaAds(userId: number, accessToken: string): Promise<void> {
+async function syncMetaAds(userId: string, accessToken: string): Promise<void> {
   const accountsRes = await fetch(
     `https://graph.facebook.com/v18.0/me/adaccounts?fields=id,name,account_status&access_token=${accessToken}`,
   );
@@ -508,7 +508,7 @@ async function syncMetaAds(userId: number, accessToken: string): Promise<void> {
   }
 }
 
-async function syncLinkedInAds(userId: number, accessToken: string): Promise<void> {
+async function syncLinkedInAds(userId: string, accessToken: string): Promise<void> {
   const accountsRes = await fetch(
     "https://api.linkedin.com/v2/adAccountsV2?q=search&search.type.values[0]=BUSINESS",
     { headers: { Authorization: `Bearer ${accessToken}`, "LinkedIn-Version": "202305" } },
@@ -590,7 +590,7 @@ async function syncLinkedInAds(userId: number, accessToken: string): Promise<voi
   }
 }
 
-async function syncMicrosoftAds(userId: number, accessToken: string): Promise<void> {
+async function syncMicrosoftAds(userId: string, accessToken: string): Promise<void> {
   const developerToken = process.env["MICROSOFT_ADS_DEVELOPER_TOKEN"];
   if (!developerToken) throw new Error("MICROSOFT_ADS_DEVELOPER_TOKEN not set");
 

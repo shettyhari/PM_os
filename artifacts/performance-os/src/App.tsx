@@ -8,7 +8,6 @@ import { AuthProvider } from "@/context/auth-context";
 import { RequireAuth } from "@/components/auth/require-auth";
 
 import Login from "@/pages/login";
-import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Campaigns from "@/pages/campaigns";
 import Analytics from "@/pages/analytics";
@@ -32,11 +31,8 @@ const queryClient = new QueryClient({
 function AppRoutes() {
   return (
     <Switch>
-      {/* Public routes */}
       <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
 
-      {/* Protected routes — wrapped in RequireAuth + AppLayout */}
       <Route>
         <RequireAuth>
           <AppLayout>

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, varchar, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -8,7 +8,7 @@ export const leadSourceEnum = pgEnum("lead_source", ["google", "meta", "linkedin
 
 export const leadsTable = pgTable("leads", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),

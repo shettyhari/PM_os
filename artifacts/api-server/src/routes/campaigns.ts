@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/campaigns", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { platform, status, search } = req.query as Record<string, string>;
 
     let campaigns = await db
@@ -35,7 +35,7 @@ router.get("/campaigns", async (req, res) => {
 
 router.post("/campaigns", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { name, platform, budget, startDate } = req.body as Record<string, string>;
 
     const [created] = await db
@@ -52,7 +52,7 @@ router.post("/campaigns", async (req, res) => {
 
 router.get("/campaigns/top-performers", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -68,7 +68,7 @@ router.get("/campaigns/top-performers", async (req, res) => {
 
 router.get("/campaigns/wasted-spend", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const campaigns = await db
       .select()
       .from(campaignsTable)
@@ -94,7 +94,7 @@ router.get("/campaigns/wasted-spend", async (req, res) => {
 
 router.get("/campaigns/:id", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const id = parseInt(req.params["id"]!);
 
     const [campaign] = await db
@@ -116,7 +116,7 @@ router.get("/campaigns/:id", async (req, res) => {
 
 router.patch("/campaigns/:id", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const id = parseInt(req.params["id"]!);
     const { name, status, budget } = req.body as Record<string, string>;
 

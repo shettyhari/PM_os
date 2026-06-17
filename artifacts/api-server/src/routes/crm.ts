@@ -7,7 +7,7 @@ const router = Router();
 
 router.get("/crm/leads", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { status, search } = req.query as Record<string, string>;
 
     let leads = await db
@@ -41,7 +41,7 @@ router.get("/crm/leads", async (req, res) => {
 
 router.post("/crm/leads", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const { name, email, phone, source, campaign, notes } = req.body as Record<string, string>;
 
     const [created] = await db
@@ -62,7 +62,7 @@ router.post("/crm/leads", async (req, res) => {
 
 router.patch("/crm/leads/:id", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const id = parseInt(req.params["id"]!);
     const { status, notes, revenue } = req.body as Record<string, string>;
 
@@ -95,7 +95,7 @@ router.patch("/crm/leads/:id", async (req, res) => {
 
 router.get("/crm/summary", async (req, res) => {
   try {
-    const userId = req.session.userId!;
+    const userId = req.user!.id;
     const leads = await db
       .select()
       .from(leadsTable)

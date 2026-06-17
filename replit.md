@@ -10,7 +10,8 @@ An AI-powered marketing operating system that unifies Google Ads, Meta Ads, Link
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — session signing
+- Required env: `DATABASE_URL` — Postgres connection string (no SESSION_SECRET needed — auth uses OIDC sessions)
+- Auth: Replit Auth (OIDC) — `GET /api/login` → Replit OIDC → `GET /api/callback` → session cookie → app
 
 ## Stack
 
@@ -40,6 +41,8 @@ An AI-powered marketing operating system that unifies Google Ads, Meta Ads, Link
 - All platform brand colours are inline Tailwind arbitrary values (e.g. `text-[#4285F4]` for Google).
 - react-icons v5 breaking change: `SiLinkedin` and `SiMicrosoftbing` do NOT exist — use `Linkedin` and `Globe` from lucide-react instead.
 - DB enums defined as Drizzle `pgEnum` (campaigns, leads, alerts, integrations, reports, conversations).
+- Auth: Replit Auth (OIDC via openid-client v6). Sessions stored in `sessions` table (Drizzle). User shape: `{ id: string (UUID), email, firstName, lastName, profileImageUrl }`. Use `req.isAuthenticated()` in Express routes, `useAuth()` from `@workspace/replit-auth-web` in the frontend. Do NOT use generated API client for auth.
+- usersTable.id is `varchar` (UUID string from Replit OIDC `sub` claim), not `serial` integer. All FK columns (campaigns.userId, leads.userId, alerts.userId, oauth_tokens.userId) are `varchar`.
 
 ## Product
 

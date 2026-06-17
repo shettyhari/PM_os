@@ -1,12 +1,17 @@
-import { ReactNode } from "react";
-import { Redirect } from "wouter";
+import { ReactNode, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, login } = useAuth();
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      login();
+    }
+  }, [isLoading, isAuthenticated, login]);
+
+  if (isLoading || !isAuthenticated) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -15,10 +20,6 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return <Redirect to="/login" />;
   }
 
   return <>{children}</>;

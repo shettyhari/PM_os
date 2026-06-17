@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, varchar, boolean, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -10,13 +10,13 @@ export const severityEnum = pgEnum("severity", ["low", "medium", "high", "critic
 
 export const alertsTable = pgTable("alerts", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   type: alertTypeEnum("type").notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
   severity: severityEnum("severity").notNull().default("medium"),
   isRead: boolean("is_read").notNull().default(false),
-  campaignId: integer("campaign_id"),
+  campaignId: serial("campaign_id"),
   campaignName: text("campaign_name"),
   platform: text("platform"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

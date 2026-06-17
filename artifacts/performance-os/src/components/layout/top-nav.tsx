@@ -24,15 +24,18 @@ export function TopNav() {
 
   const unreadCount = alerts?.length || 0;
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
+  function handleLogout() {
+    logout();
   }
 
+  const displayName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "User"
+    : null;
+
   const initials =
-    user?.name
+    displayName
       ?.split(" ")
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join("")
       .substring(0, 2)
       .toUpperCase() ?? "OS";
@@ -73,7 +76,7 @@ export function TopNav() {
                 <Skeleton className="h-9 w-9 rounded-full" />
               ) : (
                 <Avatar className="h-9 w-9 border border-border/50 shadow-sm">
-                  <AvatarImage src={user?.avatarUrl || ""} alt={user?.name || "User"} />
+                  <AvatarImage src={user?.profileImageUrl || ""} alt={displayName || "User"} />
                   <AvatarFallback className="bg-primary/10 text-primary font-medium text-xs">
                     {initials}
                   </AvatarFallback>
@@ -84,7 +87,7 @@ export function TopNav() {
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{user?.name ?? "Loading…"}</p>
+                <p className="text-sm font-medium leading-none">{displayName ?? "Loading…"}</p>
                 <p className="text-xs leading-none text-muted-foreground">{user?.email ?? "…"}</p>
               </div>
             </DropdownMenuLabel>
