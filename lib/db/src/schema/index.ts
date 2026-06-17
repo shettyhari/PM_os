@@ -7,3 +7,4 @@ export * from "./alerts";
 export * from "./conversations";
 export * from "./integrations";
 export * from "./reports";
+export * from "./user-settings";

@@ -12,6 +12,7 @@ import alertsRouter from "./alerts";
 import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
 import usersRouter from "./users";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use(alertsRouter);
 router.use(integrationsRouter);
 router.use(reportsRouter);
 router.use(usersRouter);
+router.use(settingsRouter);
 
 export default router;

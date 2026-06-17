@@ -1,2 +1,3 @@
 - [react-icons v5 icon names](react-icons-v5.md) — SiLinkedin and SiMicrosoftbing don't exist; use lucide-react fallbacks
 - [Session table bootstrap](session-table.md) — connect-pg-simple createTableIfMissing silently fails; pre-create user_sessions via raw SQL.
+- [DB schema declarations rebuild](db-declarations-rebuild.md) — after adding a new schema file, must run `pnpm --filter @workspace/db exec tsc` to emit fresh .d.ts files before api-server tsc will see the new exports.
