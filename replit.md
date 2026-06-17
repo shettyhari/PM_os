@@ -1,36 +1,57 @@
-# [Project name]
+# PerformanceOS AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An AI-powered marketing operating system that unifies Google Ads, Meta Ads, LinkedIn, Microsoft Ads, GA4, and GTM into a single premium dark-mode dashboard with Athena AI chat insights.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080, routes under `/api`)
+- `pnpm --filter @workspace/performance-os run dev` — run the frontend (port 19890, preview path `/`)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL` — Postgres connection string, `SESSION_SECRET` — session signing
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- Frontend: React + Vite, Tailwind CSS, shadcn/ui, Framer Motion, Recharts, Wouter (routing)
+- API: Express 5 (port 8080, base path `/api`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
+- API codegen: Orval (from OpenAPI spec) → `lib/api-client-react/`
 - Build: esbuild (CJS bundle)
+- Icons: lucide-react + react-icons/si (v5)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for all API contracts)
+- `lib/db/src/schema/index.ts` — Drizzle ORM schema (source of truth for DB)
+- `lib/api-client-react/` — generated React Query hooks (do not edit manually)
+- `artifacts/api-server/src/routes/` — Express route handlers per domain
+- `artifacts/performance-os/src/pages/` — one file per page/route
+- `artifacts/performance-os/src/components/` — shared UI components (AppLayout, Sidebar, TopNav)
+- `artifacts/performance-os/src/index.css` — Tailwind + CSS variables (dark-mode-first, HSL values)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Contract-first: OpenAPI spec → Orval codegen → typed hooks. Never write fetch calls manually.
+- Dark-mode default: `next-themes` with `storageKey="performanceos-theme"`, class strategy on `<html>`.
+- All platform brand colours are inline Tailwind arbitrary values (e.g. `text-[#4285F4]` for Google).
+- react-icons v5 breaking change: `SiLinkedin` and `SiMicrosoftbing` do NOT exist — use `Linkedin` and `Globe` from lucide-react instead.
+- DB enums defined as Drizzle `pgEnum` (campaigns, leads, alerts, integrations, reports, conversations).
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard**: KPI cards (spend, revenue, ROAS, leads, CPL, CTR, CPC) with trend indicators + Athena AI executive summary + platform comparison charts
+- **Campaigns**: Full data table across Google / Meta / LinkedIn / Microsoft with search, status badges, and per-row metrics
+- **Analytics**: Attribution model selector, customer journey funnel, AI-predicted performance forecast
+- **Athena AI**: Chat UI with conversation history, suggested prompts, typing indicators
+- **CRM**: Lead pipeline with status, source, campaign mapping, and revenue tracking
+- **Alerts**: Severity-coded feed (critical / high / medium / low) with mark-read actions
+- **Integrations**: Connection status cards for all 7 platforms with sync triggers
+- **Reports**: Report list with generation and download support
+- **Settings**: Profile, theme switcher
 
 ## User preferences
 
@@ -38,7 +59,11 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- react-icons v5 renamed many icons; always verify exports exist before using `Si*` names
+- `SiLinkedin` → use `Linkedin` from lucide-react; `SiMicrosoftbing` → use `Globe` from lucide-react
+- Never run `pnpm run dev` at workspace root — use `restart_workflow` or filter commands
+- After any schema change: run `pnpm --filter @workspace/db run push` then reseed if needed
+- After any OpenAPI spec change: run `pnpm --filter @workspace/api-spec run codegen`
 
 ## Pointers
 

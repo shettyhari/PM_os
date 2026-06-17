@@ -1,0 +1,1 @@
+- [react-icons v5 icon names](react-icons-v5.md) — SiLinkedin and SiMicrosoftbing don't exist; use lucide-react fallbacks

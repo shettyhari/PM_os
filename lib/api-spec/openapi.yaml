@@ -3,20 +3,38 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PerformanceOS AI - Marketing Operating System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard summary and KPIs
+  - name: campaigns
+    description: Campaign management across platforms
+  - name: metrics
+    description: Performance metrics
+  - name: ai
+    description: Athena AI assistant
+  - name: crm
+    description: CRM leads management
+  - name: alerts
+    description: Alerts and notifications
+  - name: integrations
+    description: Platform integrations
+  - name: reports
+    description: Report generation
+  - name: users
+    description: User management
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +42,599 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── DASHBOARD ───────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get executive dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary with KPIs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/kpis:
+    get:
+      operationId: getKpis
+      tags: [dashboard]
+      summary: Get KPI metrics with trends
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last7days, last30days, last90days]
+            default: last30days
+      responses:
+        "200":
+          description: KPI metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KpiCard"
+
+  /dashboard/platform-comparison:
+    get:
+      operationId: getPlatformComparison
+      tags: [dashboard]
+      summary: Compare performance across ad platforms
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [last7days, last30days, last90days]
+            default: last30days
+      responses:
+        "200":
+          description: Platform comparison data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlatformStat"
+
+  /dashboard/spend-trend:
+    get:
+      operationId: getSpendTrend
+      tags: [dashboard]
+      summary: Get daily spend trend chart data
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [last7days, last30days, last90days]
+            default: last30days
+      responses:
+        "200":
+          description: Spend trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpendTrendPoint"
+
+  /dashboard/ai-insights:
+    get:
+      operationId: getAiInsights
+      tags: [dashboard]
+      summary: Get AI-generated insights and recommendations
+      responses:
+        "200":
+          description: AI insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiInsightsResponse"
+
+  # ─── CAMPAIGNS ───────────────────────────────────────────────
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List all campaigns across platforms
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+            enum: [all, google, meta, linkedin, microsoft]
+            default: all
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, active, paused, ended]
+            default: all
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a new campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get campaign by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Update campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignUpdate"
+      responses:
+        "200":
+          description: Updated campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/top-performers:
+    get:
+      operationId: getTopPerformers
+      tags: [campaigns]
+      summary: Get top performing campaigns by ROAS
+      responses:
+        "200":
+          description: Top performing campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+
+  /campaigns/wasted-spend:
+    get:
+      operationId: getWastedSpend
+      tags: [campaigns]
+      summary: Get campaigns with wasted spend analysis
+      responses:
+        "200":
+          description: Wasted spend campaigns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WastedSpendReport"
+
+  # ─── METRICS ─────────────────────────────────────────────────
+  /metrics/attribution:
+    get:
+      operationId: getAttribution
+      tags: [metrics]
+      summary: Get attribution data by model
+      parameters:
+        - name: model
+          in: query
+          schema:
+            type: string
+            enum: [first_click, last_click, linear, data_driven]
+            default: data_driven
+      responses:
+        "200":
+          description: Attribution data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributionData"
+
+  /metrics/funnel:
+    get:
+      operationId: getConversionFunnel
+      tags: [metrics]
+      summary: Get conversion funnel data
+      responses:
+        "200":
+          description: Funnel data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FunnelStage"
+
+  /metrics/forecast:
+    get:
+      operationId: getPerformanceForecast
+      tags: [metrics]
+      summary: Get AI-powered performance forecast
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            enum: [7, 30, 90]
+            default: 30
+      responses:
+        "200":
+          description: Forecast data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ForecastPoint"
+
+  # ─── AI ──────────────────────────────────────────────────────
+  /ai/conversations:
+    get:
+      operationId: listConversations
+      tags: [ai]
+      summary: List chat conversations
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+
+    post:
+      operationId: createConversation
+      tags: [ai]
+      summary: Start a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationInput"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /ai/conversations/{id}/messages:
+    get:
+      operationId: getConversationMessages
+      tags: [ai]
+      summary: Get messages in a conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+    post:
+      operationId: sendMessage
+      tags: [ai]
+      summary: Send a message to Athena AI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "200":
+          description: AI response message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /ai/suggested-prompts:
+    get:
+      operationId: getSuggestedPrompts
+      tags: [ai]
+      summary: Get suggested AI prompts
+      responses:
+        "200":
+          description: Suggested prompts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SuggestedPrompt"
+
+  # ─── CRM ─────────────────────────────────────────────────────
+  /crm/leads:
+    get:
+      operationId: listLeads
+      tags: [crm]
+      summary: List CRM leads
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, new, contacted, qualified, proposal, won, lost]
+            default: all
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+
+    post:
+      operationId: createLead
+      tags: [crm]
+      summary: Create a new lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadInput"
+      responses:
+        "201":
+          description: Created lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /crm/leads/{id}:
+    patch:
+      operationId: updateLead
+      tags: [crm]
+      summary: Update lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: Updated lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /crm/summary:
+    get:
+      operationId: getCrmSummary
+      tags: [crm]
+      summary: Get CRM pipeline summary
+      responses:
+        "200":
+          description: CRM summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrmSummary"
+
+  # ─── ALERTS ──────────────────────────────────────────────────
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List alerts
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, unread, read]
+            default: all
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+    post:
+      operationId: createAlert
+      tags: [alerts]
+      summary: Create alert rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/read:
+    patch:
+      operationId: markAlertRead
+      tags: [alerts]
+      summary: Mark alert as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated alert
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  # ─── INTEGRATIONS ─────────────────────────────────────────────
+  /integrations:
+    get:
+      operationId: listIntegrations
+      tags: [integrations]
+      summary: List all platform integrations
+      responses:
+        "200":
+          description: Integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+
+  /integrations/{id}/sync:
+    post:
+      operationId: syncIntegration
+      tags: [integrations]
+      summary: Trigger integration sync
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sync triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+
+  # ─── REPORTS ─────────────────────────────────────────────────
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List saved reports
+      responses:
+        "200":
+          description: Reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Generate a new report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Created report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  # ─── USERS ───────────────────────────────────────────────────
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +642,581 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ─── DASHBOARD ───────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [totalSpend, totalLeads, avgRoas, avgCpl, avgCpa, platforms, aiSummary, period]
+      properties:
+        totalSpend:
+          type: number
+        totalLeads:
+          type: integer
+        avgRoas:
+          type: number
+        avgCpl:
+          type: number
+        avgCpa:
+          type: number
+        totalRevenue:
+          type: number
+        totalClicks:
+          type: integer
+        avgCtr:
+          type: number
+        platforms:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlatformStat"
+        aiSummary:
+          type: string
+        needsAttention:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+        opportunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+        topPerformers:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+        period:
+          type: string
+
+    KpiCard:
+      type: object
+      required: [id, label, value, unit, trend, trendValue, sparkline]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        value:
+          type: number
+        unit:
+          type: string
+        trend:
+          type: string
+          enum: [up, down, neutral]
+        trendValue:
+          type: number
+        sparkline:
+          type: array
+          items:
+            type: number
+        description:
+          type: string
+
+    PlatformStat:
+      type: object
+      required: [platform, spend, leads, roas, cpa, revenue, color]
+      properties:
+        platform:
+          type: string
+          enum: [google, meta, linkedin, microsoft]
+        spend:
+          type: number
+        leads:
+          type: integer
+        roas:
+          type: number
+        cpa:
+          type: number
+        revenue:
+          type: number
+        ctr:
+          type: number
+        cpc:
+          type: number
+        color:
+          type: string
+
+    SpendTrendPoint:
+      type: object
+      required: [date, google, meta, linkedin, microsoft, total]
+      properties:
+        date:
+          type: string
+        google:
+          type: number
+        meta:
+          type: number
+        linkedin:
+          type: number
+        microsoft:
+          type: number
+        total:
+          type: number
+
+    AiInsightsResponse:
+      type: object
+      required: [needsAttention, opportunities, topPerformers]
+      properties:
+        needsAttention:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+        opportunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+        topPerformers:
+          type: array
+          items:
+            $ref: "#/components/schemas/InsightItem"
+
+    InsightItem:
+      type: object
+      required: [id, type, title, description, severity, campaignId]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [warning, opportunity, success]
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        campaignId:
+          type: ["integer", "null"]
+        metric:
+          type: string
+        value:
+          type: ["number", "null"]
+        action:
+          type: string
+
+    # ─── CAMPAIGNS ───────────────────────────────────────────────
+    Campaign:
+      type: object
+      required: [id, name, platform, status, spend, clicks, ctr, cpc, leads, cpa, roas, revenue, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        platform:
+          type: string
+          enum: [google, meta, linkedin, microsoft]
+        status:
+          type: string
+          enum: [active, paused, ended, draft]
+        spend:
+          type: number
+        clicks:
+          type: integer
+        ctr:
+          type: number
+        cpc:
+          type: number
+        leads:
+          type: integer
+        cpa:
+          type: number
+        roas:
+          type: number
+        revenue:
+          type: number
+        impressions:
+          type: integer
+        cpm:
+          type: number
+        conversionRate:
+          type: number
+        budget:
+          type: number
+        startDate:
+          type: string
+        endDate:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+
+    CampaignInput:
+      type: object
+      required: [name, platform, budget]
+      properties:
+        name:
+          type: string
+        platform:
+          type: string
+          enum: [google, meta, linkedin, microsoft]
+        budget:
+          type: number
+        startDate:
+          type: string
+
+    CampaignUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, ended]
+        budget:
+          type: number
+
+    WastedSpendReport:
+      type: object
+      required: [totalWasted, campaigns]
+      properties:
+        totalWasted:
+          type: number
+        campaigns:
+          type: array
+          items:
+            type: object
+            required: [campaignId, campaignName, platform, wastedAmount, reason]
+            properties:
+              campaignId:
+                type: integer
+              campaignName:
+                type: string
+              platform:
+                type: string
+              wastedAmount:
+                type: number
+              reason:
+                type: string
+
+    # ─── METRICS ─────────────────────────────────────────────────
+    AttributionData:
+      type: object
+      required: [model, channels, totalConversions, totalRevenue]
+      properties:
+        model:
+          type: string
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttributionChannel"
+        totalConversions:
+          type: integer
+        totalRevenue:
+          type: number
+
+    AttributionChannel:
+      type: object
+      required: [channel, conversions, revenue, percentage]
+      properties:
+        channel:
+          type: string
+        conversions:
+          type: integer
+        revenue:
+          type: number
+        percentage:
+          type: number
+        color:
+          type: string
+
+    FunnelStage:
+      type: object
+      required: [stage, count, percentage, dropoff]
+      properties:
+        stage:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+        dropoff:
+          type: number
+
+    ForecastPoint:
+      type: object
+      required: [date, predictedSpend, predictedLeads, predictedRevenue, predictedRoas, confidence]
+      properties:
+        date:
+          type: string
+        predictedSpend:
+          type: number
+        predictedLeads:
+          type: integer
+        predictedRevenue:
+          type: number
+        predictedRoas:
+          type: number
+        confidence:
+          type: number
+
+    # ─── AI ──────────────────────────────────────────────────────
+    Conversation:
+      type: object
+      required: [id, title, createdAt, updatedAt, messageCount]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        messageCount:
+          type: integer
+        lastMessage:
+          type: string
+
+    ConversationInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+
+    Message:
+      type: object
+      required: [id, conversationId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        createdAt:
+          type: string
+        metadata:
+          type: ["object", "null"]
+          additionalProperties: true
+
+    MessageInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    SuggestedPrompt:
+      type: object
+      required: [id, text, category, icon]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        category:
+          type: string
+          enum: [analyze, optimize, report, predict]
+        icon:
+          type: string
+
+    # ─── CRM ─────────────────────────────────────────────────────
+    Lead:
+      type: object
+      required: [id, name, email, status, source, campaign, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [new, contacted, qualified, proposal, won, lost]
+        source:
+          type: string
+          enum: [google, meta, linkedin, microsoft, organic, referral]
+        campaign:
+          type: string
+        revenue:
+          type: ["number", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    LeadInput:
+      type: object
+      required: [name, email, source, campaign]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        source:
+          type: string
+          enum: [google, meta, linkedin, microsoft, organic, referral]
+        campaign:
+          type: string
+        notes:
+          type: string
+
+    LeadUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [new, contacted, qualified, proposal, won, lost]
+        notes:
+          type: string
+        revenue:
+          type: number
+
+    CrmSummary:
+      type: object
+      required: [totalLeads, byStatus, totalRevenue, conversionRate, avgDealSize]
+      properties:
+        totalLeads:
+          type: integer
+        byStatus:
+          type: array
+          items:
+            type: object
+            required: [status, count, value]
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+              value:
+                type: number
+        totalRevenue:
+          type: number
+        conversionRate:
+          type: number
+        avgDealSize:
+          type: number
+
+    # ─── ALERTS ──────────────────────────────────────────────────
+    Alert:
+      type: object
+      required: [id, type, title, message, severity, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [high_cpa, low_ctr, budget_exhausted, conversion_drop, roas_drop, opportunity]
+        title:
+          type: string
+        message:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        isRead:
+          type: boolean
+        campaignId:
+          type: ["integer", "null"]
+        campaignName:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    AlertInput:
+      type: object
+      required: [type, title, message, severity]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        campaignId:
+          type: integer
+
+    # ─── INTEGRATIONS ─────────────────────────────────────────────
+    Integration:
+      type: object
+      required: [id, platform, name, status, accountsConnected, lastSync]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+          enum: [google_ads, meta_ads, linkedin_ads, microsoft_ads, ga4, gtm, search_console]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [connected, disconnected, error, syncing]
+        accountsConnected:
+          type: integer
+        lastSync:
+          type: ["string", "null"]
+        description:
+          type: string
+        icon:
+          type: string
+
+    # ─── REPORTS ─────────────────────────────────────────────────
+    Report:
+      type: object
+      required: [id, title, type, status, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          enum: [weekly, monthly, campaign, custom]
+        status:
+          type: string
+          enum: [generating, ready, scheduled]
+        period:
+          type: string
+        createdAt:
+          type: string
+        downloadUrl:
+          type: ["string", "null"]
+
+    ReportInput:
+      type: object
+      required: [title, type]
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [weekly, monthly, campaign, custom]
+        period:
+          type: string
+
+    # ─── USERS ───────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, name, email, role, organization]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager, analyst, viewer]
+        organization:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        theme:
+          type: string
+          enum: [light, dark, system]
