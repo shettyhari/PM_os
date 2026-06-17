@@ -59,7 +59,7 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="org">Organization</Label>
-                  <Input id="org" defaultValue={user?.organization} className="bg-background" />
+                  <Input id="org" defaultValue={user?.organizationName ?? ""} className="bg-background" />
                 </div>
                 <Button>Save Changes</Button>
               </>

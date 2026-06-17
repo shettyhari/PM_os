@@ -232,7 +232,7 @@ export default function Dashboard() {
                   <BarChart data={platformComp} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
                     <XAxis type="number" tickFormatter={(value) => `₹${value / 1000}k`} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                    <YAxis dataKey="platform" type="category" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))', textTransform: 'capitalize' }} axisLine={false} tickLine={false} width={80} />
+                    <YAxis dataKey="platform" type="category" tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} axisLine={false} tickLine={false} width={80} />
                     <Tooltip 
                       cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}

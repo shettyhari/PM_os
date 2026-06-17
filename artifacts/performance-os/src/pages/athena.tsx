@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useListConversations, useGetSuggestedPrompts, useSendMessage, useCreateConversation, useGetConversationMessages } from "@workspace/api-client-react";
+import { useListConversations, useGetSuggestedPrompts, useSendMessage, useCreateConversation, useGetConversationMessages, getGetConversationMessagesQueryKey } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ export default function Athena() {
   
   const { data: conversations, isLoading: isLoadingChats } = useListConversations();
   const { data: prompts } = useGetSuggestedPrompts();
-  const { data: messages, isLoading: isLoadingMessages } = useGetConversationMessages(activeChatId!, { query: { enabled: !!activeChatId } });
+  const { data: messages, isLoading: isLoadingMessages } = useGetConversationMessages(activeChatId ?? 0, { query: { enabled: !!activeChatId, queryKey: getGetConversationMessagesQueryKey(activeChatId ?? 0) } });
   
   const createChat = useCreateConversation();
   const sendMessage = useSendMessage();

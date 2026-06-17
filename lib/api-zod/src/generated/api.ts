@@ -672,10 +672,112 @@ export const GetCurrentUserResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "email": zod.string(),
-  "role": zod.enum(['admin', 'manager', 'analyst', 'viewer']),
-  "organization": zod.string(),
-  "avatarUrl": zod.string().nullish(),
-  "theme": zod.enum(['light', 'dark', 'system']).optional()
+  "role": zod.enum(['admin', 'member', 'viewer']),
+  "organizationName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Register a new account
+ */
+export const registerBodyPasswordMin = 8;
+
+
+
+export const RegisterBody = zod.object({
+  "email": zod.string().email(),
+  "password": zod.string().min(registerBodyPasswordMin),
+  "name": zod.string(),
+  "organizationName": zod.string().optional()
+})
+
+
+/**
+ * @summary Login with email and password
+ */
+export const LoginBody = zod.object({
+  "email": zod.string().email(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['admin', 'member', 'viewer']),
+  "organizationName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Logout current session
+ */
+export const LogoutResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Get current authenticated user
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['admin', 'member', 'viewer']),
+  "organizationName": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get OAuth connection status for all platforms
+ */
+export const GetOAuthStatusResponseItem = zod.object({
+  "platform": zod.string(),
+  "connected": zod.boolean(),
+  "accountName": zod.string().nullish(),
+  "lastSync": zod.string().nullish(),
+  "needsConfig": zod.boolean()
+})
+export const GetOAuthStatusResponse = zod.array(GetOAuthStatusResponseItem)
+
+
+/**
+ * @summary Get OAuth authorization URL for a platform
+ */
+export const InitiateOAuthParams = zod.object({
+  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft'])
+})
+
+export const InitiateOAuthResponse = zod.object({
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Disconnect a platform and remove synced data
+ */
+export const DisconnectOAuthParams = zod.object({
+  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft'])
+})
+
+export const DisconnectOAuthResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Trigger a manual data sync for a connected platform
+ */
+export const SyncOAuthParams = zod.object({
+  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft'])
+})
+
+export const SyncOAuthResponse = zod.object({
+  "message": zod.string()
 })
 
 

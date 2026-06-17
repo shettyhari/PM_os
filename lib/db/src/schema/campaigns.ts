@@ -1,12 +1,15 @@
 import { pgTable, text, serial, timestamp, real, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const platformEnum = pgEnum("platform", ["google", "meta", "linkedin", "microsoft"]);
 export const campaignStatusEnum = pgEnum("campaign_status", ["active", "paused", "ended", "draft"]);
 
 export const campaignsTable = pgTable("campaigns", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  externalId: text("external_id"),
   name: text("name").notNull(),
   platform: platformEnum("platform").notNull(),
   status: campaignStatusEnum("status").notNull().default("active"),
@@ -25,9 +28,16 @@ export const campaignsTable = pgTable("campaigns", {
   startDate: text("start_date"),
   endDate: text("end_date"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
-export const insertCampaignSchema = createInsertSchema(campaignsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCampaignSchema = createInsertSchema(campaignsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 export type Campaign = typeof campaignsTable.$inferSelect;

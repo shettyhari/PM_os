@@ -1,44 +1,96 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { integrationsTable } from "@workspace/db";
+import { oauthTokensTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
 
+const PLATFORM_META: Record<
+  string,
+  { name: string; description: string; color: string; docsUrl: string }
+> = {
+  google: {
+    name: "Google Ads",
+    description: "Sync campaigns, ad groups, keywords, and performance metrics from your Google Ads accounts.",
+    color: "#4285F4",
+    docsUrl: "https://developers.google.com/google-ads/api/docs/start",
+  },
+  meta: {
+    name: "Meta Ads",
+    description: "Import Facebook & Instagram campaigns, audiences, and cross-channel attribution data.",
+    color: "#0082FB",
+    docsUrl: "https://developers.facebook.com/docs/marketing-api/get-started",
+  },
+  linkedin: {
+    name: "LinkedIn Ads",
+    description: "Sync LinkedIn Campaign Manager data including sponsored content and lead gen forms.",
+    color: "#0A66C2",
+    docsUrl: "https://docs.microsoft.com/en-us/linkedin/marketing/",
+  },
+  microsoft: {
+    name: "Microsoft Ads",
+    description: "Connect Microsoft Advertising for Bing Search, audience ads, and shopping campaigns.",
+    color: "#00A4EF",
+    docsUrl: "https://docs.microsoft.com/en-us/advertising/guides/",
+  },
+  ga4: {
+    name: "Google Analytics 4",
+    description: "Pull GA4 events, conversions, user journeys, and attribution data for unified reporting.",
+    color: "#E37400",
+    docsUrl: "https://developers.google.com/analytics/devguides/reporting/data/v1",
+  },
+  gtm: {
+    name: "Google Tag Manager",
+    description: "Manage and audit your GTM containers, tags, triggers, and data layer configuration.",
+    color: "#246FDB",
+    docsUrl: "https://developers.google.com/tag-platform/tag-manager/api/v2",
+  },
+  search_console: {
+    name: "Google Search Console",
+    description: "Import organic search data, keyword rankings, impressions, and CTR from Search Console.",
+    color: "#4285F4",
+    docsUrl: "https://developers.google.com/webmaster-tools",
+  },
+};
+
 router.get("/integrations", async (req, res) => {
   try {
-    const integrations = await db.select().from(integrationsTable);
-    res.json(
-      integrations.map((i) => ({
-        ...i,
-        lastSync: i.lastSync ? i.lastSync.toISOString() : null,
-        createdAt: undefined,
-        updatedAt: undefined,
-      }))
-    );
+    const userId = req.session.userId!;
+
+    const tokens = await db
+      .select()
+      .from(oauthTokensTable)
+      .where(eq(oauthTokensTable.userId, userId));
+
+    const integrations = Object.entries(PLATFORM_META).map(([key, meta], idx) => {
+      // GA4, GTM, Search Console use the same Google OAuth token
+      const oauthPlatform =
+        key === "ga4" || key === "gtm" || key === "search_console" ? "google" : key;
+      const token = tokens.find((t) => t.platform === oauthPlatform);
+
+      return {
+        id: idx + 1,
+        platform: key,
+        name: meta.name,
+        status: token ? "connected" : "disconnected",
+        accountsConnected: token ? 1 : 0,
+        lastSync: token?.updatedAt ? token.updatedAt.toISOString() : null,
+        description: meta.description,
+        accountName: token?.accountName ?? null,
+        color: meta.color,
+        docsUrl: meta.docsUrl,
+        needsConfig: !process.env[
+          key === "meta" ? "META_APP_ID" :
+          key === "linkedin" ? "LINKEDIN_CLIENT_ID" :
+          key === "microsoft" ? "MICROSOFT_CLIENT_ID" :
+          "GOOGLE_CLIENT_ID"
+        ],
+      };
+    });
+
+    res.json(integrations);
   } catch (err) {
     req.log.error({ err }, "Failed to list integrations");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.post("/integrations/:id/sync", async (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const [updated] = await db
-      .update(integrationsTable)
-      .set({ status: "syncing", lastSync: new Date() })
-      .where(eq(integrationsTable.id, id))
-      .returning();
-    if (!updated) return res.status(404).json({ error: "Integration not found" });
-
-    setTimeout(async () => {
-      await db.update(integrationsTable).set({ status: "connected" }).where(eq(integrationsTable.id, id));
-    }, 3000);
-
-    res.json({ ...updated, lastSync: updated.lastSync ? updated.lastSync.toISOString() : null, createdAt: undefined, updatedAt: undefined });
-  } catch (err) {
-    req.log.error({ err }, "Failed to sync integration");
     res.status(500).json({ error: "Internal server error" });
   }
 });

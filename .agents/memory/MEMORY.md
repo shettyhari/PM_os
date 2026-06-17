@@ -1,1 +1,2 @@
 - [react-icons v5 icon names](react-icons-v5.md) — SiLinkedin and SiMicrosoftbing don't exist; use lucide-react fallbacks
+- [Session table bootstrap](session-table.md) — connect-pg-simple createTableIfMissing silently fails; pre-create user_sessions via raw SQL.

@@ -31,6 +31,8 @@ import type {
   ConversationInput,
   CrmSummary,
   DashboardSummary,
+  DisconnectOAuth200,
+  Error,
   ForecastPoint,
   FunnelStage,
   GetAttributionParams,
@@ -39,6 +41,7 @@ import type {
   GetPlatformComparisonParams,
   GetSpendTrendParams,
   HealthStatus,
+  InitiateOAuth200,
   Integration,
   KpiCard,
   Lead,
@@ -47,13 +50,18 @@ import type {
   ListAlertsParams,
   ListCampaignsParams,
   ListLeadsParams,
+  LoginRequest,
+  Logout200,
   Message,
   MessageInput,
+  OAuthPlatformStatus,
   PlatformStat,
+  RegisterRequest,
   Report,
   ReportInput,
   SpendTrendPoint,
   SuggestedPrompt,
+  SyncOAuth200,
   User,
   WastedSpendReport
 } from './api.schemas';
@@ -2530,4 +2538,587 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+
+export const getRegisterUrl = () => {
+
+
+
+
+  return `/api/auth/register`
+}
+
+/**
+ * @summary Register a new account
+ */
+export const register = async (registerRequest: RegisterRequest, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getRegisterUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      registerRequest,)
+  }
+);}
+
+
+
+
+export const getRegisterMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: BodyType<RegisterRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: BodyType<RegisterRequest>}, TContext> => {
+
+const mutationKey = ['register'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof register>>, {data: BodyType<RegisterRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  register(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
+    export type RegisterMutationBody = BodyType<RegisterRequest>
+    export type RegisterMutationError = ErrorType<Error>
+
+    /**
+ * @summary Register a new account
+ */
+export const useRegister = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: BodyType<RegisterRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof register>>,
+        TError,
+        {data: BodyType<RegisterRequest>},
+        TContext
+      > => {
+      return useMutation(getRegisterMutationOptions(options));
+    }
+
+export const getLoginUrl = () => {
+
+
+
+
+  return `/api/auth/login`
+}
+
+/**
+ * @summary Login with email and password
+ */
+export const login = async (loginRequest: LoginRequest, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      loginRequest,)
+  }
+);}
+
+
+
+
+export const getLoginMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginRequest>}, TContext> => {
+
+const mutationKey = ['login'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof login>>, {data: BodyType<LoginRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  login(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
+    export type LoginMutationBody = BodyType<LoginRequest>
+    export type LoginMutationError = ErrorType<Error>
+
+    /**
+ * @summary Login with email and password
+ */
+export const useLogin = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof login>>,
+        TError,
+        {data: BodyType<LoginRequest>},
+        TContext
+      > => {
+      return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getLogoutUrl = () => {
+
+
+
+
+  return `/api/auth/logout`
+}
+
+/**
+ * @summary Logout current session
+ */
+export const logout = async ( options?: RequestInit): Promise<Logout200> => {
+
+  return customFetch<Logout200>(getLogoutUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getLogoutMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext> => {
+
+const mutationKey = ['logout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logout>>, void> = () => {
+
+
+          return  logout(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutMutationResult = NonNullable<Awaited<ReturnType<typeof logout>>>
+
+    export type LogoutMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Logout current session
+ */
+export const useLogout = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logout>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logout>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutMutationOptions(options));
+    }
+
+export const getGetMeUrl = () => {
+
+
+
+
+  return `/api/auth/me`
+}
+
+/**
+ * @summary Get current authenticated user
+ */
+export const getMe = async ( options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getGetMeUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMeQueryKey = () => {
+    return [
+    `/api/auth/me`
+    ] as const;
+    }
+
+
+export const getGetMeQueryOptions = <TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<Error>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({ signal }) => getMe({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
+export type GetMeQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get current authenticated user
+ */
+
+export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = ErrorType<Error>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMeQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetOAuthStatusUrl = () => {
+
+
+
+
+  return `/api/oauth/status`
+}
+
+/**
+ * @summary Get OAuth connection status for all platforms
+ */
+export const getOAuthStatus = async ( options?: RequestInit): Promise<OAuthPlatformStatus[]> => {
+
+  return customFetch<OAuthPlatformStatus[]>(getGetOAuthStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOAuthStatusQueryKey = () => {
+    return [
+    `/api/oauth/status`
+    ] as const;
+    }
+
+
+export const getGetOAuthStatusQueryOptions = <TData = Awaited<ReturnType<typeof getOAuthStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOAuthStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOAuthStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOAuthStatus>>> = ({ signal }) => getOAuthStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOAuthStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOAuthStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getOAuthStatus>>>
+export type GetOAuthStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get OAuth connection status for all platforms
+ */
+
+export function useGetOAuthStatus<TData = Awaited<ReturnType<typeof getOAuthStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOAuthStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOAuthStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getInitiateOAuthUrl = (platform: 'google' | 'meta' | 'linkedin' | 'microsoft',) => {
+
+
+
+
+  return `/api/oauth/initiate/${platform}`
+}
+
+/**
+ * @summary Get OAuth authorization URL for a platform
+ */
+export const initiateOAuth = async (platform: 'google' | 'meta' | 'linkedin' | 'microsoft', options?: RequestInit): Promise<InitiateOAuth200> => {
+
+  return customFetch<InitiateOAuth200>(getInitiateOAuthUrl(platform),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getInitiateOAuthQueryKey = (platform: 'google' | 'meta' | 'linkedin' | 'microsoft',) => {
+    return [
+    `/api/oauth/initiate/${platform}`
+    ] as const;
+    }
+
+
+export const getInitiateOAuthQueryOptions = <TData = Awaited<ReturnType<typeof initiateOAuth>>, TError = ErrorType<Error>>(platform: 'google' | 'meta' | 'linkedin' | 'microsoft', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof initiateOAuth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getInitiateOAuthQueryKey(platform);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof initiateOAuth>>> = ({ signal }) => initiateOAuth(platform, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(platform), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof initiateOAuth>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type InitiateOAuthQueryResult = NonNullable<Awaited<ReturnType<typeof initiateOAuth>>>
+export type InitiateOAuthQueryError = ErrorType<Error>
+
+
+/**
+ * @summary Get OAuth authorization URL for a platform
+ */
+
+export function useInitiateOAuth<TData = Awaited<ReturnType<typeof initiateOAuth>>, TError = ErrorType<Error>>(
+ platform: 'google' | 'meta' | 'linkedin' | 'microsoft', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof initiateOAuth>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getInitiateOAuthQueryOptions(platform,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getDisconnectOAuthUrl = (platform: 'google' | 'meta' | 'linkedin' | 'microsoft',) => {
+
+
+
+
+  return `/api/oauth/disconnect/${platform}`
+}
+
+/**
+ * @summary Disconnect a platform and remove synced data
+ */
+export const disconnectOAuth = async (platform: 'google' | 'meta' | 'linkedin' | 'microsoft', options?: RequestInit): Promise<DisconnectOAuth200> => {
+
+  return customFetch<DisconnectOAuth200>(getDisconnectOAuthUrl(platform),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDisconnectOAuthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext> => {
+
+const mutationKey = ['disconnectOAuth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectOAuth>>, {platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}> = (props) => {
+          const {platform} = props ?? {};
+
+          return  disconnectOAuth(platform,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectOAuthMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectOAuth>>>
+
+    export type DisconnectOAuthMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Disconnect a platform and remove synced data
+ */
+export const useDisconnectOAuth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectOAuth>>,
+        TError,
+        {platform: 'google' | 'meta' | 'linkedin' | 'microsoft'},
+        TContext
+      > => {
+      return useMutation(getDisconnectOAuthMutationOptions(options));
+    }
+
+export const getSyncOAuthUrl = (platform: 'google' | 'meta' | 'linkedin' | 'microsoft',) => {
+
+
+
+
+  return `/api/oauth/sync/${platform}`
+}
+
+/**
+ * @summary Trigger a manual data sync for a connected platform
+ */
+export const syncOAuth = async (platform: 'google' | 'meta' | 'linkedin' | 'microsoft', options?: RequestInit): Promise<SyncOAuth200> => {
+
+  return customFetch<SyncOAuth200>(getSyncOAuthUrl(platform),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSyncOAuthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext> => {
+
+const mutationKey = ['syncOAuth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncOAuth>>, {platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}> = (props) => {
+          const {platform} = props ?? {};
+
+          return  syncOAuth(platform,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncOAuthMutationResult = NonNullable<Awaited<ReturnType<typeof syncOAuth>>>
+
+    export type SyncOAuthMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Trigger a manual data sync for a connected platform
+ */
+export const useSyncOAuth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncOAuth>>, TError,{platform: 'google' | 'meta' | 'linkedin' | 'microsoft'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncOAuth>>,
+        TError,
+        {platform: 'google' | 'meta' | 'linkedin' | 'microsoft'},
+        TContext
+      > => {
+      return useMutation(getSyncOAuthMutationOptions(options));
+    }
 

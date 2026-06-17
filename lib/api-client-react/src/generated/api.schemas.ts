@@ -528,18 +528,8 @@ export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 export const UserRole = {
   admin: 'admin',
-  manager: 'manager',
-  analyst: 'analyst',
+  member: 'member',
   viewer: 'viewer',
-} as const;
-
-export type UserTheme = typeof UserTheme[keyof typeof UserTheme];
-
-
-export const UserTheme = {
-  light: 'light',
-  dark: 'dark',
-  system: 'system',
 } as const;
 
 export interface User {
@@ -547,10 +537,37 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  organization: string;
+  /** @nullable */
+  organizationName?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
-  theme?: UserTheme;
+}
+
+export interface RegisterRequest {
+  email: string;
+  /** @minLength 8 */
+  password: string;
+  name: string;
+  organizationName?: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface OAuthPlatformStatus {
+  platform: string;
+  connected: boolean;
+  /** @nullable */
+  accountName?: string | null;
+  /** @nullable */
+  lastSync?: string | null;
+  needsConfig: boolean;
+}
+
+export interface Error {
+  error: string;
 }
 
 export type GetKpisParams = {
@@ -678,4 +695,20 @@ export const ListAlertsStatus = {
   unread: 'unread',
   read: 'read',
 } as const;
+
+export type Logout200 = {
+  success: boolean;
+};
+
+export type InitiateOAuth200 = {
+  url: string;
+};
+
+export type DisconnectOAuth200 = {
+  success: boolean;
+};
+
+export type SyncOAuth200 = {
+  message: string;
+};
 

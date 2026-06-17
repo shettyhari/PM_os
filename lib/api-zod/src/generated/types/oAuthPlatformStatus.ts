@@ -5,15 +5,13 @@
  * PerformanceOS AI - Marketing Operating System API
  * OpenAPI spec version: 0.1.0
  */
-import type { UserRole } from './userRole';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: UserRole;
+export interface OAuthPlatformStatus {
+  platform: string;
+  connected: boolean;
   /** @nullable */
-  organizationName?: string | null;
+  accountName?: string | null;
   /** @nullable */
-  avatarUrl?: string | null;
+  lastSync?: string | null;
+  needsConfig: boolean;
 }

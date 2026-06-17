@@ -2,9 +2,13 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { AppLayout } from "@/components/layout/app-layout";
+import { AuthProvider } from "@/context/auth-context";
+import { RequireAuth } from "@/components/auth/require-auth";
 
+import Login from "@/pages/login";
+import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Campaigns from "@/pages/campaigns";
 import Analytics from "@/pages/analytics";
@@ -25,20 +29,33 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function AppRoutes() {
   return (
     <Switch>
-      <Route path="/" component={() => <Dashboard />} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/athena" component={Athena} />
-      <Route path="/crm" component={Crm} />
-      <Route path="/alerts" component={Alerts} />
-      <Route path="/integrations" component={Integrations} />
-      <Route path="/reports" component={Reports} />
-      <Route path="/settings" component={Settings} />
-      <Route component={NotFound} />
+      {/* Public routes */}
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+
+      {/* Protected routes — wrapped in RequireAuth + AppLayout */}
+      <Route>
+        <RequireAuth>
+          <AppLayout>
+            <Switch>
+              <Route path="/" component={() => <Redirect to="/dashboard" />} />
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/campaigns" component={Campaigns} />
+              <Route path="/analytics" component={Analytics} />
+              <Route path="/athena" component={Athena} />
+              <Route path="/crm" component={Crm} />
+              <Route path="/alerts" component={Alerts} />
+              <Route path="/integrations" component={Integrations} />
+              <Route path="/reports" component={Reports} />
+              <Route path="/settings" component={Settings} />
+              <Route component={NotFound} />
+            </Switch>
+          </AppLayout>
+        </RequireAuth>
+      </Route>
     </Switch>
   );
 }
@@ -49,9 +66,9 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <AppLayout>
-              <Router />
-            </AppLayout>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
