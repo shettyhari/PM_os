@@ -17,6 +17,8 @@ import Alerts from "@/pages/alerts";
 import Integrations from "@/pages/integrations";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import Windsor from "@/pages/windsor";
+import Attribution from "@/pages/attribution";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -47,6 +49,8 @@ function AppRoutes() {
               <Route path="/integrations" component={Integrations} />
               <Route path="/reports" component={Reports} />
               <Route path="/settings" component={Settings} />
+              <Route path="/windsor" component={Windsor} />
+              <Route path="/attribution" component={Attribution} />
               <Route component={NotFound} />
             </Switch>
           </AppLayout>

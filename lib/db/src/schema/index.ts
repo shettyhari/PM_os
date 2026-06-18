@@ -9,3 +9,4 @@ export * from "./integrations";
 export * from "./reports";
 export * from "./user-settings";
 export * from "./user-memory";
+export * from "./windsor";

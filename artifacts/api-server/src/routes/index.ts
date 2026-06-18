@@ -13,6 +13,7 @@ import integrationsRouter from "./integrations";
 import reportsRouter from "./reports";
 import usersRouter from "./users";
 import settingsRouter from "./settings";
+import windsorRouter from "./windsor";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use(integrationsRouter);
 router.use(reportsRouter);
 router.use(usersRouter);
 router.use(settingsRouter);
+router.use(windsorRouter);
 
 export default router;

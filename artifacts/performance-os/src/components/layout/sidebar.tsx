@@ -12,7 +12,9 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
-  X
+  X,
+  GitMerge,
+  Database
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useListAlerts } from "@workspace/api-client-react";
@@ -30,9 +32,11 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
   { icon: Megaphone, label: "Campaigns", href: "/campaigns" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
+  { icon: GitMerge, label: "Attribution", href: "/attribution" },
   { icon: Bot, label: "Athena AI", href: "/athena" },
   { icon: Users, label: "CRM", href: "/crm" },
   { icon: Bell, label: "Alerts", href: "/alerts", badge: "alerts" },
+  { icon: Database, label: "Windsor.ai", href: "/windsor" },
   { icon: Blocks, label: "Integrations", href: "/integrations" },
   { icon: FileBarChart, label: "Reports", href: "/reports" },
 ];
