@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useListAlerts } from "@workspace/api-client-react";
+import { PerformanceLogo } from "@/components/ui/performance-logo";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -34,7 +35,7 @@ const navItems = [
 
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [location] = useLocation();
-  const { data: alerts } = useListAlerts({ status: 'unread' });
+  const { data: alerts } = useListAlerts({ status: "unread" });
   const unreadAlertsCount = alerts?.length || 0;
 
   return (
@@ -44,18 +45,24 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         isCollapsed ? "w-[72px]" : "w-64"
       )}
     >
+      {/* Logo */}
       <div className="flex h-16 items-center justify-between px-4 border-b border-border/50">
         {!isCollapsed && (
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-glow">
-              <Bot className="h-5 w-5" />
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <PerformanceLogo size={34} />
+            <div className="overflow-hidden">
+              <span className="font-bold tracking-tight truncate text-sidebar-foreground text-[15px] leading-none block">
+                PerformanceOS
+              </span>
+              <span className="text-[10px] text-sidebar-foreground/40 font-medium tracking-widest uppercase block mt-0.5">
+                AI Marketing OS
+              </span>
             </div>
-            <span className="font-bold tracking-tight truncate text-sidebar-foreground">PerformanceOS</span>
           </div>
         )}
         {isCollapsed && (
-          <div className="flex h-8 w-8 mx-auto items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-glow shrink-0">
-            <Bot className="h-5 w-5" />
+          <div className="mx-auto">
+            <PerformanceLogo size={34} />
           </div>
         )}
       </div>

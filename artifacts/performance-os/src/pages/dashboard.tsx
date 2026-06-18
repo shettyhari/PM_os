@@ -279,7 +279,7 @@ export default function Dashboard() {
 
         {/* Platform Quick Connect */}
         <div className="lg:col-span-1">
-          <DashboardIntegrations />
+          <DashboardIntegrations onOpenSettings={() => setSettingsOpen(true)} />
         </div>
       </div>
 

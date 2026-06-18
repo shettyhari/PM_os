@@ -1,14 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { oauthTokensTable } from "@workspace/db";
+import { oauthTokensTable, userSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
 
-const PLATFORM_META: Record<
-  string,
-  { name: string; description: string; color: string; docsUrl: string }
-> = {
+const PLATFORM_META: Record<string, { name: string; description: string; color: string; docsUrl: string }> = {
   google: {
     name: "Google Ads",
     description: "Sync campaigns, ad groups, keywords, and performance metrics from your Google Ads accounts.",
@@ -53,19 +50,34 @@ const PLATFORM_META: Record<
   },
 };
 
+/** Check if a platform needs credentials configured (env or DB) */
+function platformNeedsConfigSync(
+  key: string,
+  userSettings: { googleClientId: string | null; metaAppId: string | null } | null,
+): boolean {
+  if (key === "google" || key === "ga4" || key === "gtm" || key === "search_console") {
+    return !process.env["GOOGLE_CLIENT_ID"] && !userSettings?.googleClientId;
+  }
+  if (key === "meta") return !process.env["META_APP_ID"] && !userSettings?.metaAppId;
+  if (key === "linkedin") return !process.env["LINKEDIN_CLIENT_ID"];
+  if (key === "microsoft") return !process.env["MICROSOFT_CLIENT_ID"];
+  return true;
+}
+
 router.get("/integrations", async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    const tokens = await db
-      .select()
-      .from(oauthTokensTable)
-      .where(eq(oauthTokensTable.userId, userId));
+    const [tokens, settingsRows] = await Promise.all([
+      db.select().from(oauthTokensTable).where(eq(oauthTokensTable.userId, userId)),
+      db.select({ googleClientId: userSettingsTable.googleClientId, metaAppId: userSettingsTable.metaAppId })
+        .from(userSettingsTable).where(eq(userSettingsTable.userId, userId)),
+    ]);
+
+    const userSettings = settingsRows[0] ?? null;
 
     const integrations = Object.entries(PLATFORM_META).map(([key, meta], idx) => {
-      // GA4, GTM, Search Console use the same Google OAuth token
-      const oauthPlatform =
-        key === "ga4" || key === "gtm" || key === "search_console" ? "google" : key;
+      const oauthPlatform = key === "ga4" || key === "gtm" || key === "search_console" ? "google" : key;
       const token = tokens.find((t) => t.platform === oauthPlatform);
 
       return {
@@ -79,12 +91,7 @@ router.get("/integrations", async (req, res) => {
         accountName: token?.accountName ?? null,
         color: meta.color,
         docsUrl: meta.docsUrl,
-        needsConfig: !process.env[
-          key === "meta" ? "META_APP_ID" :
-          key === "linkedin" ? "LINKEDIN_CLIENT_ID" :
-          key === "microsoft" ? "MICROSOFT_CLIENT_ID" :
-          "GOOGLE_CLIENT_ID"
-        ],
+        needsConfig: platformNeedsConfigSync(key, userSettings),
       };
     });
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { SiGoogleads, SiMeta } from "react-icons/si";
-import { RefreshCw, CheckCircle2, XCircle, Unplug, Zap, Settings, ExternalLink } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Unplug, Zap, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Integration {
@@ -21,8 +21,13 @@ interface Integration {
 
 const SHOWN_PLATFORMS = ["google", "meta"];
 
-export function DashboardIntegrations() {
+interface DashboardIntegrationsProps {
+  onOpenSettings?: () => void;
+}
+
+export function DashboardIntegrations({ onOpenSettings }: DashboardIntegrationsProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
   const [disconnecting, setDisconnecting] = useState<Record<string, boolean>>({});
@@ -35,28 +40,35 @@ export function DashboardIntegrations() {
         const data = await res.json() as Integration[];
         setIntegrations(data.filter((i) => SHOWN_PLATFORMS.includes(i.platform)));
       }
-    } catch {
-      // ignore
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => {
-    void fetchIntegrations();
-  }, []);
+  useEffect(() => { void fetchIntegrations(); }, []);
 
-  async function handleConnect(platform: string) {
+  async function handleConnect(platform: string, needsConfig: boolean) {
+    // If credentials not configured, open settings instead of attempting OAuth
+    if (needsConfig) {
+      toast({
+        title: "Credentials required",
+        description: "Enter your OAuth app credentials in Settings first, then connect.",
+      });
+      onOpenSettings?.();
+      return;
+    }
+
     setConnecting((p) => ({ ...p, [platform]: true }));
     try {
       const res = await fetch(`/api/oauth/initiate/${platform}`, { credentials: "include" });
-      const data = await res.json() as { url?: string; error?: string; needsConfig?: boolean; envVar?: string };
+      const data = await res.json() as { url?: string; error?: string; needsConfig?: boolean };
       if (!res.ok) {
-        toast({
-          title: "Credentials required",
-          description: data.needsConfig
-            ? `Set the ${data.envVar ?? "OAuth credentials"} secret to enable this integration.`
-            : (data.error ?? "Could not initiate OAuth flow."),
-          variant: "destructive",
-        });
+        if (data.needsConfig) {
+          toast({ title: "Credentials required", description: "Enter your OAuth app credentials in Dashboard → Settings." });
+          onOpenSettings?.();
+        } else {
+          toast({ title: "Connection failed", description: data.error ?? "Could not initiate OAuth flow.", variant: "destructive" });
+        }
         return;
       }
       if (data.url) window.location.href = data.url;
@@ -103,23 +115,22 @@ export function DashboardIntegrations() {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3 border-b border-border/50">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
+    <Card className="h-full">
+      <CardHeader className="py-3 px-4 border-b border-border/50">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <Zap className="w-4 h-4 text-primary" />
           Platform Connections
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border/50">
-          {integrations.length === 0 && (
-            <div className="p-4 space-y-3">
-              {SHOWN_PLATFORMS.map((p) => (
-                <div key={p} className="h-16 rounded-lg bg-muted/20 animate-pulse" />
-              ))}
+          {loading && SHOWN_PLATFORMS.map((p) => (
+            <div key={p} className="p-4">
+              <div className="h-14 rounded-lg bg-muted/30 animate-pulse" />
             </div>
-          )}
-          {integrations.map((intg) => (
+          ))}
+
+          {!loading && integrations.map((intg) => (
             <div key={intg.platform} className="p-4 flex items-center gap-3">
               <div className="p-2 rounded-lg bg-background border border-border/50 shrink-0">
                 {getIcon(intg.platform)}
@@ -143,12 +154,9 @@ export function DashboardIntegrations() {
                     Last sync {new Date(intg.lastSync).toLocaleDateString()}
                   </p>
                 )}
-                {intg.needsConfig && (
-                  <p className="text-[11px] text-amber-500 mt-0.5 flex items-center gap-1">
-                    <Settings className="w-3 h-3" /> OAuth credentials required
-                    <a href={intg.docsUrl} target="_blank" rel="noreferrer" className="underline">
-                      <ExternalLink className="w-2.5 h-2.5 inline" />
-                    </a>
+                {intg.needsConfig && intg.status !== "connected" && (
+                  <p className="text-[11px] text-amber-500 mt-0.5">
+                    Credentials needed — click to configure
                   </p>
                 )}
               </div>
@@ -157,9 +165,7 @@ export function DashboardIntegrations() {
                 {intg.status === "connected" ? (
                   <>
                     <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs gap-1"
+                      size="sm" variant="outline" className="h-8 text-xs gap-1"
                       onClick={() => void handleSync(intg.platform)}
                       disabled={syncing[intg.platform]}
                     >
@@ -167,8 +173,7 @@ export function DashboardIntegrations() {
                       {syncing[intg.platform] ? "Syncing" : "Sync"}
                     </Button>
                     <Button
-                      size="icon"
-                      variant="ghost"
+                      size="icon" variant="ghost"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                       onClick={() => void handleDisconnect(intg.platform)}
                       disabled={disconnecting[intg.platform]}
@@ -177,17 +182,23 @@ export function DashboardIntegrations() {
                       <Unplug className="w-3.5 h-3.5" />
                     </Button>
                   </>
+                ) : intg.needsConfig ? (
+                  <Button
+                    size="sm" variant="outline" className="h-8 text-xs gap-1 border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                    onClick={() => void handleConnect(intg.platform, true)}
+                  >
+                    <Settings2 className="w-3 h-3" />
+                    Setup
+                  </Button>
                 ) : (
                   <Button
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => void handleConnect(intg.platform)}
-                    disabled={connecting[intg.platform] || intg.needsConfig}
-                    variant={intg.needsConfig ? "outline" : "default"}
+                    size="sm" className="h-8 text-xs"
+                    onClick={() => void handleConnect(intg.platform, false)}
+                    disabled={connecting[intg.platform]}
                   >
                     {connecting[intg.platform] ? (
                       <><RefreshCw className="mr-1 w-3 h-3 animate-spin" />Redirecting…</>
-                    ) : intg.needsConfig ? "Configure" : "Connect"}
+                    ) : "Connect"}
                   </Button>
                 )}
               </div>

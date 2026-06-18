@@ -323,18 +323,18 @@ export default function Integrations() {
                     </div>
                   ) : (
                     <Button
-                      className="w-full h-9 text-xs font-medium"
+                      className={cn(
+                        "w-full h-9 text-xs font-medium",
+                        integration.needsConfig && "border-amber-500/40 text-amber-600 hover:bg-amber-500/10"
+                      )}
                       onClick={() => { void handleConnect(integration.platform); }}
-                      disabled={connecting[integration.platform] || integration.needsConfig}
+                      disabled={connecting[integration.platform]}
                       variant={integration.needsConfig ? "outline" : "default"}
                     >
                       {connecting[integration.platform] ? (
-                        <>
-                          <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          Redirecting…
-                        </>
+                        <><RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />Redirecting…</>
                       ) : integration.needsConfig ? (
-                        "Credentials required"
+                        <><Settings className="mr-1.5 h-3.5 w-3.5" />Setup Credentials</>
                       ) : (
                         "Connect via OAuth"
                       )}
