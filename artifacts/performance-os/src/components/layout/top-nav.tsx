@@ -1,4 +1,4 @@
-import { Search, Bell, LogOut } from "lucide-react";
+import { Search, Bell, LogOut, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,11 @@ import { useAuth } from "@/context/auth-context";
 import { Link, useLocation } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function TopNav() {
+interface TopNavProps {
+  onMenuToggle: () => void;
+}
+
+export function TopNav({ onMenuToggle }: TopNavProps) {
   const { theme, setTheme } = useTheme();
   const { user, isLoading: isUserLoading, logout } = useAuth();
   const [, navigate] = useLocation();
@@ -41,7 +45,17 @@ export function TopNav() {
       .toUpperCase() ?? "OS";
 
   return (
-    <header className="h-16 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between px-6">
+    <header className="h-14 md:h-16 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between px-3 md:px-6 gap-2">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuToggle}
+        className="md:hidden p-2 -ml-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Search — hidden on mobile */}
       <div className="flex-1 flex items-center">
         <div className="relative w-full max-w-md hidden md:flex items-center">
           <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
@@ -55,7 +69,7 @@ export function TopNav() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         <Link href="/alerts">
           <Button
             variant="ghost"
