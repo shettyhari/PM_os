@@ -8,3 +8,4 @@ export * from "./conversations";
 export * from "./integrations";
 export * from "./reports";
 export * from "./user-settings";
+export * from "./user-memory";
