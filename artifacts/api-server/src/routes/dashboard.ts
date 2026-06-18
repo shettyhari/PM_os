@@ -1,115 +1,144 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { campaignsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { windsorMetricsTable } from "@workspace/db";
+import { eq, and, gte, sql } from "drizzle-orm";
+import { connectorDisplayName } from "../services/windsor";
 
 const router = Router();
+
+const PLATFORM_COLORS: Record<string, string> = {
+  facebook: "#0082FB",
+  meta: "#0082FB",
+  google: "#4285F4",
+  linkedin: "#0A66C2",
+  microsoft: "#00A4EF",
+  tiktok: "#010101",
+};
+
+/** Aggregate Windsor metrics from DB for a given user and date cutoff */
+async function getWindsorMetrics(userId: string, days: number) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffStr = cutoff.toISOString().split("T")[0]!;
+
+  return db
+    .select()
+    .from(windsorMetricsTable)
+    .where(and(eq(windsorMetricsTable.userId, userId), gte(windsorMetricsTable.date, cutoffStr)));
+}
 
 router.get("/dashboard/summary", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    const metrics = await getWindsorMetrics(userId, 30);
 
-    const totalSpend = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
-    const totalLeads = campaigns.reduce((s, c) => s + (c.leads || 0), 0);
-    const totalRevenue = campaigns.reduce((s, c) => s + (c.revenue || 0), 0);
-    const totalClicks = campaigns.reduce((s, c) => s + (c.clicks || 0), 0);
+    const totalSpend = metrics.reduce((s, r) => s + (r.spend ?? 0), 0);
+    const totalLeads = metrics.reduce((s, r) => s + (r.leads ?? 0), 0);
+    const totalRevenue = metrics.reduce((s, r) => s + (r.revenue ?? 0), 0);
+    const totalClicks = metrics.reduce((s, r) => s + (r.clicks ?? 0), 0);
+    const totalImpressions = metrics.reduce((s, r) => s + (r.impressions ?? 0), 0);
+    const totalConversions = metrics.reduce((s, r) => s + (r.conversions ?? 0), 0);
     const avgRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
-    const avgCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
-    const avgCtr =
-      campaigns.length > 0
-        ? campaigns.reduce((s, c) => s + (c.ctr || 0), 0) / campaigns.length
-        : 0;
+    const avgCpl = totalLeads > 0 ? totalSpend / totalLeads : totalConversions > 0 ? totalSpend / totalConversions : 0;
+    const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
 
-    const platformMap: Record<
-      string,
-      { platform: string; spend: number; leads: number; revenue: number; ctr: number; cpc: number; color: string }
-    > = {
-      google: { platform: "google", spend: 0, leads: 0, revenue: 0, ctr: 0, cpc: 0, color: "#4285F4" },
-      meta: { platform: "meta", spend: 0, leads: 0, revenue: 0, ctr: 0, cpc: 0, color: "#0082FB" },
-      linkedin: { platform: "linkedin", spend: 0, leads: 0, revenue: 0, ctr: 0, cpc: 0, color: "#0A66C2" },
-      microsoft: { platform: "microsoft", spend: 0, leads: 0, revenue: 0, ctr: 0, cpc: 0, color: "#00A4EF" },
-    };
+    // Per-platform aggregation
+    const platformMap: Record<string, { platform: string; spend: number; leads: number; revenue: number; clicks: number; impressions: number; conversions: number; color: string }> = {};
 
-    for (const c of campaigns) {
-      if (platformMap[c.platform]) {
-        platformMap[c.platform].spend += c.spend || 0;
-        platformMap[c.platform].leads += c.leads || 0;
-        platformMap[c.platform].revenue += c.revenue || 0;
-        platformMap[c.platform].ctr += c.ctr || 0;
-        platformMap[c.platform].cpc += c.cpc || 0;
+    for (const r of metrics) {
+      const p = r.connector;
+      if (!platformMap[p]) {
+        platformMap[p] = { platform: p, spend: 0, leads: 0, revenue: 0, clicks: 0, impressions: 0, conversions: 0, color: PLATFORM_COLORS[p] ?? "#888" };
       }
+      platformMap[p].spend += r.spend ?? 0;
+      platformMap[p].leads += r.leads ?? 0;
+      platformMap[p].revenue += r.revenue ?? 0;
+      platformMap[p].clicks += r.clicks ?? 0;
+      platformMap[p].impressions += r.impressions ?? 0;
+      platformMap[p].conversions += r.conversions ?? 0;
     }
 
-    const platforms = Object.values(platformMap).map((p) => {
-      const count = campaigns.filter((c) => c.platform === p.platform).length || 1;
-      return {
-        ...p,
-        roas: p.spend > 0 ? p.revenue / p.spend : 0,
-        cpa: p.leads > 0 ? p.spend / p.leads : 0,
-        ctr: p.ctr / count,
-        cpc: p.cpc / count,
-      };
-    });
+    const platforms = Object.values(platformMap).map((p) => ({
+      platform: p.platform,
+      displayName: connectorDisplayName(p.platform),
+      spend: p.spend,
+      leads: p.leads,
+      revenue: p.revenue,
+      roas: p.spend > 0 ? p.revenue / p.spend : 0,
+      cpa: (p.leads + p.conversions) > 0 ? p.spend / (p.leads + p.conversions) : 0,
+      ctr: p.impressions > 0 ? p.clicks / p.impressions : 0,
+      cpc: p.clicks > 0 ? p.spend / p.clicks : 0,
+      color: p.color,
+    }));
 
-    // Derive insights from real data
+    // Campaign-level insights from metrics
+    const campaignMap: Record<string, { name: string; platform: string; spend: number; leads: number; revenue: number; conversions: number; clicks: number }> = {};
+    for (const r of metrics) {
+      const key = `${r.connector}::${r.campaignName}`;
+      if (!campaignMap[key]) {
+        campaignMap[key] = { name: r.campaignName ?? "Unknown", platform: r.connector, spend: 0, leads: 0, revenue: 0, conversions: 0, clicks: 0 };
+      }
+      campaignMap[key].spend += r.spend ?? 0;
+      campaignMap[key].leads += r.leads ?? 0;
+      campaignMap[key].revenue += r.revenue ?? 0;
+      campaignMap[key].conversions += r.conversions ?? 0;
+      campaignMap[key].clicks += r.clicks ?? 0;
+    }
+
+    const campaigns = Object.values(campaignMap).map((c) => ({
+      ...c,
+      roas: c.spend > 0 ? c.revenue / c.spend : 0,
+    }));
+
     const needsAttention = campaigns
-      .filter((c) => (c.roas || 0) < 1.5 && (c.spend || 0) > 1000)
+      .filter((c) => c.spend > 5000 && (c.leads + c.conversions) === 0)
       .slice(0, 3)
-      .map((c) => ({
-        id: `na-${c.id}`,
+      .map((c, i) => ({
+        id: `na-${i}`,
         type: "warning",
-        title: `${c.name} — Low ROAS`,
-        description: `ROAS is ${(c.roas || 0).toFixed(1)}x — below break-even. Review targeting and creatives.`,
-        severity: (c.roas || 0) < 0.5 ? "critical" : "high",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
+        title: `${c.name} — No Conversions`,
+        description: `₹${c.spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spent with 0 conversions tracked. Verify conversion setup or pause.`,
+        severity: c.spend > 50000 ? "critical" : "high",
+        metric: "Conversions",
+        value: 0,
         action: "Review campaign",
       }));
 
-    const opportunities = campaigns
-      .filter((c) => (c.roas || 0) > 4 && c.status === "active")
-      .slice(0, 2)
-      .map((c) => ({
-        id: `op-${c.id}`,
-        type: "opportunity",
-        title: `Scale ${c.name}`,
-        description: `ROAS ${(c.roas || 0).toFixed(1)}x — strong performance. Increasing budget could yield more conversions.`,
-        severity: "high",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
-        action: "Increase budget",
-      }));
+    const topBySpend = [...campaigns].sort((a, b) => b.spend - a.spend).slice(0, 2);
+    const opportunities = topBySpend.map((c, i) => ({
+      id: `op-${i}`,
+      type: "opportunity",
+      title: `Scale ${c.name}`,
+      description: `Top spender at ₹${c.spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })}. Add conversion tracking to measure true ROAS.`,
+      severity: "high",
+      metric: "Spend",
+      value: c.spend,
+      action: "Configure tracking",
+    }));
 
     const topPerformers = [...campaigns]
-      .sort((a, b) => (b.roas || 0) - (a.roas || 0))
+      .filter((c) => c.spend > 1000)
+      .sort((a, b) => b.spend - a.spend)
       .slice(0, 2)
-      .map((c) => ({
-        id: `tp-${c.id}`,
+      .map((c, i) => ({
+        id: `tp-${i}`,
         type: "success",
         title: c.name,
-        description: `ROAS ${(c.roas || 0).toFixed(1)}x, ${c.leads} leads at ${(c.cpa || 0).toFixed(0)} CPL.`,
+        description: `₹${c.spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spend, ${c.clicks ?? 0} clicks via ${connectorDisplayName(c.platform)}.`,
         severity: "low",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
+        metric: "Spend",
+        value: c.spend,
         action: "View campaign",
       }));
 
     const aiSummary =
-      campaigns.length === 0
-        ? "No campaign data yet. Connect your ad platforms from the Integrations page to see AI-powered insights here."
-        : `Portfolio ROAS: ${avgRoas.toFixed(1)}x across ${campaigns.length} active campaigns. ` +
-          (totalLeads > 0 ? `${totalLeads} leads at avg CPL of ${avgCpl.toFixed(0)}. ` : "") +
+      metrics.length === 0
+        ? "Windsor.ai is connected. Sync your data from the Integrations page to see live AI-powered insights here."
+        : `${connectorDisplayName(platforms[0]?.platform ?? "Meta")} portfolio: ₹${totalSpend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spend across ${campaigns.length} campaigns (last 30 days). ` +
+          `${totalClicks.toLocaleString()} clicks at avg CPC of ₹${totalClicks > 0 ? (totalSpend / totalClicks).toFixed(0) : "0"}. ` +
           (needsAttention.length > 0
-            ? `${needsAttention.length} campaign(s) need attention. `
-            : "All campaigns performing within targets. ") +
-          (opportunities.length > 0 ? `${opportunities.length} scaling opportunity detected.` : "");
+            ? `${needsAttention.length} campaign(s) need attention — no conversions tracked.`
+            : "All campaigns actively spending.");
 
     res.json({
       totalSpend,
@@ -126,6 +155,7 @@ router.get("/dashboard/summary", async (req, res) => {
       opportunities,
       topPerformers,
       period: "last_30_days",
+      dataSource: metrics.length > 0 ? "windsor" : "empty",
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get dashboard summary");
@@ -136,35 +166,57 @@ router.get("/dashboard/summary", async (req, res) => {
 router.get("/dashboard/kpis", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
 
-    const totalSpend = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
-    const totalLeads = campaigns.reduce((s, c) => s + (c.leads || 0), 0);
-    const totalRevenue = campaigns.reduce((s, c) => s + (c.revenue || 0), 0);
-    const totalClicks = campaigns.reduce((s, c) => s + (c.clicks || 0), 0);
-    const avgRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
-    const avgCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
-    const avgCtr =
-      campaigns.length > 0
-        ? campaigns.reduce((s, c) => s + (c.ctr || 0), 0) / campaigns.length
-        : 0;
-    const avgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+    // Get both 30-day and 7-day data for trend calculation
+    const [metrics30, metrics7] = await Promise.all([
+      getWindsorMetrics(userId, 30),
+      getWindsorMetrics(userId, 7),
+    ]);
 
-    const spark = (base: number) =>
-      Array.from({ length: 7 }, () => base * (0.75 + Math.random() * 0.5));
+    const agg = (rows: typeof metrics30) => ({
+      spend: rows.reduce((s, r) => s + (r.spend ?? 0), 0),
+      leads: rows.reduce((s, r) => s + (r.leads ?? 0), 0),
+      revenue: rows.reduce((s, r) => s + (r.revenue ?? 0), 0),
+      clicks: rows.reduce((s, r) => s + (r.clicks ?? 0), 0),
+      impressions: rows.reduce((s, r) => s + (r.impressions ?? 0), 0),
+      conversions: rows.reduce((s, r) => s + (r.conversions ?? 0), 0),
+    });
+
+    const t30 = agg(metrics30);
+    const t7 = agg(metrics7);
+
+    const avgRoas30 = t30.spend > 0 ? t30.revenue / t30.spend : 0;
+    const avgCpl30 = (t30.leads + t30.conversions) > 0 ? t30.spend / (t30.leads + t30.conversions) : 0;
+    const avgCtr30 = t30.impressions > 0 ? (t30.clicks / t30.impressions) * 100 : 0;
+    const avgCpc30 = t30.clicks > 0 ? t30.spend / t30.clicks : 0;
+
+    const trendPct = (curr: number, prev: number): number => {
+      if (prev === 0) return 0;
+      return Math.round(((curr - prev) / prev) * 100);
+    };
+
+    // Build 7-point sparklines from grouped daily spend
+    const dailyMap: Record<string, number> = {};
+    for (const r of metrics30) {
+      const d = r.date ?? "";
+      dailyMap[d] = (dailyMap[d] ?? 0) + (r.spend ?? 0);
+    }
+    const sortedDays = Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+    const sparkSpend = sortedDays.slice(-7).length === 7 ? sortedDays.slice(-7) : Array(7).fill(t30.spend / 7);
+
+    const spark = (v: number) => Array(7).fill(0).map((_, i) => v * (0.8 + (i / 7) * 0.4));
 
     res.json([
-      { id: "spend", label: "Total Spend", value: totalSpend, unit: "₹", trend: "up" as const, trendValue: 0, sparkline: spark(totalSpend / 7), description: "Last 30 days" },
-      { id: "revenue", label: "Total Revenue", value: totalRevenue, unit: "₹", trend: "up" as const, trendValue: 0, sparkline: spark(totalRevenue / 7), description: "Attributed revenue" },
-      { id: "roas", label: "ROAS", value: Number(avgRoas.toFixed(1)), unit: "x", trend: "up" as const, trendValue: 0, sparkline: spark(avgRoas), description: "Return on ad spend" },
-      { id: "leads", label: "Total Leads", value: totalLeads, unit: "", trend: "up" as const, trendValue: 0, sparkline: spark(totalLeads / 7), description: "Qualified leads" },
-      { id: "cpl", label: "CPL", value: Number(avgCpl.toFixed(0)), unit: "₹", trend: "down" as const, trendValue: 0, sparkline: spark(avgCpl), description: "Cost per lead" },
-      { id: "ctr", label: "CTR", value: Number(avgCtr.toFixed(2)), unit: "%", trend: "up" as const, trendValue: 0, sparkline: spark(avgCtr), description: "Click-through rate" },
-      { id: "cpc", label: "CPC", value: Number(avgCpc.toFixed(0)), unit: "₹", trend: "down" as const, trendValue: 0, sparkline: spark(avgCpc), description: "Cost per click" },
-      { id: "clicks", label: "Clicks", value: totalClicks, unit: "", trend: "up" as const, trendValue: 0, sparkline: spark(totalClicks / 7), description: "Total clicks" },
+      { id: "spend", label: "Total Spend", value: t30.spend, unit: "currency", trend: t7.spend > t30.spend / 4.3 ? "up" : "down", trendValue: trendPct(t7.spend, t30.spend / 4.3), sparkline: sparkSpend, description: "Last 30 days" },
+      { id: "revenue", label: "Total Revenue", value: t30.revenue, unit: "currency", trend: "up", trendValue: 0, sparkline: spark(t30.revenue / 7), description: "Attributed revenue" },
+      { id: "roas", label: "ROAS", value: Number(avgRoas30.toFixed(2)), unit: "multiplier", trend: "up", trendValue: 0, sparkline: spark(avgRoas30), description: "Return on ad spend" },
+      { id: "leads", label: "Leads / Conversions", value: t30.leads + t30.conversions, unit: "number", trend: "up", trendValue: 0, sparkline: spark((t30.leads + t30.conversions) / 7), description: "Total conversions tracked" },
+      { id: "cpl", label: "CPL", value: Number(avgCpl30.toFixed(0)), unit: "currency", trend: avgCpl30 > 0 ? "down" : "up", trendValue: 0, sparkline: spark(avgCpl30), description: "Cost per lead/conversion" },
+      { id: "ctr", label: "CTR", value: Number(avgCtr30.toFixed(2)), unit: "percentage", trend: "up", trendValue: 0, sparkline: spark(avgCtr30), description: "Click-through rate" },
+      { id: "cpc", label: "CPC", value: Number(avgCpc30.toFixed(0)), unit: "currency", trend: "down", trendValue: 0, sparkline: spark(avgCpc30), description: "Cost per click" },
+      { id: "clicks", label: "Clicks", value: t30.clicks, unit: "number", trend: "up", trendValue: trendPct(t7.clicks, t30.clicks / 4.3), sparkline: spark(t30.clicks / 7), description: "Total clicks" },
     ]);
   } catch (err) {
     req.log.error({ err }, "Failed to get KPIs");
@@ -175,45 +227,34 @@ router.get("/dashboard/kpis", async (req, res) => {
 router.get("/dashboard/platform-comparison", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    const metrics = await getWindsorMetrics(userId, 30);
 
-    const platformColors: Record<string, string> = {
-      google: "#4285F4",
-      meta: "#0082FB",
-      linkedin: "#0A66C2",
-      microsoft: "#00A4EF",
-    };
+    const platformMap: Record<string, { platform: string; spend: number; leads: number; revenue: number; clicks: number; impressions: number; conversions: number }> = {};
 
-    const platformMap: Record<
-      string,
-      { platform: string; spend: number; leads: number; revenue: number; ctr: number; cpc: number; count: number }
-    > = {};
-
-    for (const c of campaigns) {
-      if (!platformMap[c.platform]) {
-        platformMap[c.platform] = { platform: c.platform, spend: 0, leads: 0, revenue: 0, ctr: 0, cpc: 0, count: 0 };
+    for (const r of metrics) {
+      const p = r.connector;
+      if (!platformMap[p]) {
+        platformMap[p] = { platform: p, spend: 0, leads: 0, revenue: 0, clicks: 0, impressions: 0, conversions: 0 };
       }
-      platformMap[c.platform].spend += c.spend || 0;
-      platformMap[c.platform].leads += c.leads || 0;
-      platformMap[c.platform].revenue += c.revenue || 0;
-      platformMap[c.platform].ctr += c.ctr || 0;
-      platformMap[c.platform].cpc += c.cpc || 0;
-      platformMap[c.platform].count++;
+      platformMap[p].spend += r.spend ?? 0;
+      platformMap[p].leads += r.leads ?? 0;
+      platformMap[p].revenue += r.revenue ?? 0;
+      platformMap[p].clicks += r.clicks ?? 0;
+      platformMap[p].impressions += r.impressions ?? 0;
+      platformMap[p].conversions += r.conversions ?? 0;
     }
 
     const result = Object.values(platformMap).map((p) => ({
       platform: p.platform,
+      displayName: connectorDisplayName(p.platform),
       spend: p.spend,
       leads: p.leads,
       revenue: p.revenue,
       roas: p.spend > 0 ? p.revenue / p.spend : 0,
-      cpa: p.leads > 0 ? p.spend / p.leads : 0,
-      ctr: p.count > 0 ? p.ctr / p.count : 0,
-      cpc: p.count > 0 ? p.cpc / p.count : 0,
-      color: platformColors[p.platform] ?? "#888",
+      cpa: (p.leads + p.conversions) > 0 ? p.spend / (p.leads + p.conversions) : 0,
+      ctr: p.impressions > 0 ? p.clicks / p.impressions : 0,
+      cpc: p.clicks > 0 ? p.spend / p.clicks : 0,
+      color: PLATFORM_COLORS[p.platform] ?? "#888",
     }));
 
     res.json(result);
@@ -226,35 +267,33 @@ router.get("/dashboard/platform-comparison", async (req, res) => {
 router.get("/dashboard/spend-trend", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    const metrics = await getWindsorMetrics(userId, 30);
 
-    const googleDaily =
-      campaigns.filter((c) => c.platform === "google").reduce((s, c) => s + (c.spend || 0), 0) / 30;
-    const metaDaily =
-      campaigns.filter((c) => c.platform === "meta").reduce((s, c) => s + (c.spend || 0), 0) / 30;
-    const linkedinDaily =
-      campaigns.filter((c) => c.platform === "linkedin").reduce((s, c) => s + (c.spend || 0), 0) / 30;
-    const microsoftDaily =
-      campaigns.filter((c) => c.platform === "microsoft").reduce((s, c) => s + (c.spend || 0), 0) / 30;
+    // Group by date × platform
+    const byDate: Record<string, Record<string, number>> = {};
+    for (const r of metrics) {
+      const d = r.date ?? "";
+      if (!byDate[d]) byDate[d] = {};
+      byDate[d][r.connector] = (byDate[d][r.connector] ?? 0) + (r.spend ?? 0);
+    }
 
+    // Fill in last 30 days
     const trend = Array.from({ length: 30 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (29 - i));
-      const n = () => 0.7 + Math.random() * 0.6;
-      const google = Math.round(googleDaily * n());
-      const meta = Math.round(metaDaily * n());
-      const linkedin = Math.round(linkedinDaily * n());
-      const microsoft = Math.round(microsoftDaily * n());
+      const d = date.toISOString().split("T")[0]!;
+      const row = byDate[d] ?? {};
+      const meta = row["facebook"] ?? 0;
+      const google = row["google"] ?? 0;
+      const linkedin = row["linkedin"] ?? 0;
+      const microsoft = row["microsoft"] ?? 0;
       return {
-        date: date.toISOString().split("T")[0],
-        google,
+        date: d,
         meta,
+        google,
         linkedin,
         microsoft,
-        total: google + meta + linkedin + microsoft,
+        total: meta + google + linkedin + microsoft,
       };
     });
 
@@ -268,53 +307,62 @@ router.get("/dashboard/spend-trend", async (req, res) => {
 router.get("/dashboard/ai-insights", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    const metrics = await getWindsorMetrics(userId, 30);
+
+    const campaignMap: Record<string, { name: string; platform: string; spend: number; leads: number; revenue: number; conversions: number; clicks: number }> = {};
+    for (const r of metrics) {
+      const key = `${r.connector}::${r.campaignName}`;
+      if (!campaignMap[key]) {
+        campaignMap[key] = { name: r.campaignName ?? "Unknown", platform: r.connector, spend: 0, leads: 0, revenue: 0, conversions: 0, clicks: 0 };
+      }
+      campaignMap[key].spend += r.spend ?? 0;
+      campaignMap[key].leads += r.leads ?? 0;
+      campaignMap[key].revenue += r.revenue ?? 0;
+      campaignMap[key].conversions += r.conversions ?? 0;
+      campaignMap[key].clicks += r.clicks ?? 0;
+    }
+
+    const campaigns = Object.values(campaignMap);
 
     const needsAttention = campaigns
-      .filter((c) => (c.roas || 0) < 1.5 && (c.spend || 0) > 500)
+      .filter((c) => c.spend > 5000 && (c.leads + c.conversions) === 0)
       .slice(0, 3)
-      .map((c) => ({
-        id: `na-${c.id}`,
+      .map((c, i) => ({
+        id: `na-${i}`,
         type: "warning",
-        title: `${c.name} — Low ROAS`,
-        description: `ROAS ${(c.roas || 0).toFixed(1)}x. Consider pausing or adjusting targeting.`,
-        severity: (c.roas || 0) < 0.5 ? "critical" : "high",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
-        action: "Review campaign",
+        title: `${c.name} — No Conversions`,
+        description: `₹${c.spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spent with 0 conversions. Add conversion tracking in ${connectorDisplayName(c.platform)}.`,
+        severity: c.spend > 50000 ? "critical" : "high",
+        metric: "Conversions",
+        value: 0,
+        action: "Configure tracking",
       }));
 
-    const opportunities = campaigns
-      .filter((c) => (c.roas || 0) > 4 && c.status === "active")
+    const opportunities = [...campaigns]
+      .sort((a, b) => b.clicks - a.clicks)
       .slice(0, 2)
-      .map((c) => ({
-        id: `op-${c.id}`,
+      .map((c, i) => ({
+        id: `op-${i}`,
         type: "opportunity",
-        title: `Scale ${c.name}`,
-        description: `Strong ROAS of ${(c.roas || 0).toFixed(1)}x — increase budget to capture more volume.`,
+        title: `Optimize ${c.name}`,
+        description: `${c.clicks.toLocaleString()} clicks at ₹${c.clicks > 0 ? (c.spend / c.clicks).toFixed(0) : "0"} CPC. Adding a landing page conversion goal could unlock ROAS tracking.`,
         severity: "high",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
-        action: "Increase budget",
+        metric: "Clicks",
+        value: c.clicks,
+        action: "Add conversion goal",
       }));
 
     const topPerformers = [...campaigns]
-      .sort((a, b) => (b.roas || 0) - (a.roas || 0))
+      .sort((a, b) => b.spend - a.spend)
       .slice(0, 2)
-      .map((c) => ({
-        id: `tp-${c.id}`,
+      .map((c, i) => ({
+        id: `tp-${i}`,
         type: "success",
         title: c.name,
-        description: `ROAS ${(c.roas || 0).toFixed(1)}x with ${c.leads} conversions.`,
+        description: `₹${c.spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spend, ${c.clicks.toLocaleString()} clicks via ${connectorDisplayName(c.platform)}.`,
         severity: "low",
-        campaignId: c.id,
-        metric: "ROAS",
-        value: c.roas || 0,
+        metric: "Spend",
+        value: c.spend,
         action: "View campaign",
       }));
 

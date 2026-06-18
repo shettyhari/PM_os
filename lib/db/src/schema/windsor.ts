@@ -7,11 +7,11 @@ export const windsorConnectionsTable = pgTable("windsor_connections", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   apiKey: text("api_key").notNull(),
-  status: text("status").notNull().default("pending"), // pending | connected | error
-  syncInterval: integer("sync_interval").notNull().default(30), // minutes
+  status: text("status").notNull().default("pending"),
+  syncInterval: integer("sync_interval").notNull().default(30),
   autoSync: boolean("auto_sync").notNull().default(true),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
-  lastSyncStatus: text("last_sync_status"), // success | error
+  lastSyncStatus: text("last_sync_status"),
   lastSyncError: text("last_sync_error"),
   connectedSources: jsonb("connected_sources").$type<string[]>().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -24,8 +24,8 @@ export const syncLogsTable = pgTable("sync_logs", {
     .notNull()
     .references(() => windsorConnectionsTable.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull(),
-  status: text("status").notNull(), // success | error | running
-  connector: text("connector"), // facebook_ads | google_ads | etc
+  status: text("status").notNull(),
+  connector: text("connector"),
   recordsImported: integer("records_imported").notNull().default(0),
   durationMs: integer("duration_ms"),
   errorMessage: text("error_message"),
@@ -36,29 +36,16 @@ export const windsorMetricsTable = pgTable("windsor_metrics", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   windsorConnectionId: integer("windsor_connection_id"),
-  connector: text("connector").notNull(), // facebook_ads | google_ads | linkedin_ads | microsoft_ads | ga4
-  date: text("date").notNull(), // YYYY-MM-DD
-  accountId: text("account_id"),
+  connector: text("connector").notNull(),
+  date: text("date").notNull(),
   accountName: text("account_name"),
-  campaignId: text("campaign_id"),
   campaignName: text("campaign_name"),
-  adsetId: text("adset_id"),
-  adsetName: text("adset_name"),
-  adId: text("ad_id"),
-  adName: text("ad_name"),
-  status: text("status"),
   spend: real("spend"),
   impressions: integer("impressions"),
   clicks: integer("clicks"),
   ctr: real("ctr"),
   cpc: real("cpc"),
-  cpm: real("cpm"),
   conversions: real("conversions"),
-  conversionValue: real("conversion_value"),
-  roas: real("roas"),
-  cpa: real("cpa"),
-  reach: integer("reach"),
-  frequency: real("frequency"),
   leads: integer("leads"),
   revenue: real("revenue"),
   rawData: jsonb("raw_data"),
@@ -68,11 +55,11 @@ export const windsorMetricsTable = pgTable("windsor_metrics", {
 export const aiInsightsTable = pgTable("ai_insights", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
-  type: text("type").notNull(), // morning_briefing | anomaly | recommendation | weekly_summary
+  type: text("type").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   metadata: jsonb("metadata"),
-  date: text("date").notNull(), // YYYY-MM-DD
+  date: text("date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

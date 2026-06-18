@@ -1,37 +1,26 @@
 /**
  * Windsor.ai API Service
- * Fetches marketing data from Windsor.ai and stores in PostgreSQL
- * Windsor API docs: https://windsor.ai/api-fields/
+ * Real endpoint: https://connectors.windsor.ai/all?api_key=KEY&date_preset=PRESET&fields=...
+ * Confirmed working fields: source, campaign, spend, clicks, impressions, ctr, cpc, conversions, leads, date, account_name
  */
 
-const WINDSOR_BASE = "https://connectors.windsor.ai/api/v1";
+const WINDSOR_BASE = "https://connectors.windsor.ai/all";
 
 export interface WindsorDataRow {
-  date?: string;
-  connector?: string;
-  account_id?: string;
+  source?: string;
+  campaign?: string;
   account_name?: string;
-  campaign_id?: string;
+  date?: string;
+  spend?: number | null;
+  impressions?: number | null;
+  clicks?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  conversions?: number | null;
+  leads?: number | null;
+  // Normalized fields added by our mapper
+  connector?: string;
   campaign_name?: string;
-  adset_id?: string;
-  adset_name?: string;
-  ad_id?: string;
-  ad_name?: string;
-  status?: string;
-  spend?: number;
-  impressions?: number;
-  clicks?: number;
-  ctr?: number;
-  cpc?: number;
-  cpm?: number;
-  conversions?: number;
-  conversion_value?: number;
-  roas?: number;
-  cpa?: number;
-  reach?: number;
-  frequency?: number;
-  leads?: number;
-  revenue?: number;
   [key: string]: unknown;
 }
 
@@ -41,73 +30,83 @@ export interface WindsorDataResponse {
 }
 
 export const WINDSOR_CONNECTORS = [
-  { id: "facebook_ads", name: "Meta Ads", icon: "meta" },
-  { id: "google_ads", name: "Google Ads", icon: "google" },
-  { id: "linkedin_ads", name: "LinkedIn Ads", icon: "linkedin" },
-  { id: "microsoft_ads", name: "Microsoft Ads", icon: "microsoft" },
-  { id: "google_analytics_4", name: "Google Analytics 4", icon: "ga4" },
-  { id: "tiktok_ads", name: "TikTok Ads", icon: "tiktok" },
-  { id: "google_search_console", name: "Search Console", icon: "gsc" },
+  { id: "facebook", name: "Meta Ads", icon: "meta" },
+  { id: "google", name: "Google Ads", icon: "google" },
+  { id: "linkedin", name: "LinkedIn Ads", icon: "linkedin" },
+  { id: "microsoft", name: "Microsoft Ads", icon: "microsoft" },
+  { id: "tiktok", name: "TikTok Ads", icon: "tiktok" },
 ];
 
-const CAMPAIGN_FIELDS = [
-  "date",
-  "connector",
-  "account_id",
-  "account_name",
-  "campaign_id",
-  "campaign_name",
-  "status",
-  "spend",
-  "impressions",
-  "clicks",
-  "ctr",
-  "cpc",
-  "cpm",
-  "conversions",
-  "conversion_value",
-  "roas",
-  "cpa",
-  "reach",
-  "leads",
-  "revenue",
-].join(",");
-
-function getDateRange(days = 30): { dateFrom: string; dateTo: string } {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - days);
-  return {
-    dateFrom: from.toISOString().split("T")[0]!,
-    dateTo: to.toISOString().split("T")[0]!,
+/** Map Windsor source strings to our internal connector names */
+export function normalizeSource(source: string): string {
+  const map: Record<string, string> = {
+    facebook: "facebook",
+    facebook_ads: "facebook",
+    instagram: "facebook",
+    google: "google",
+    google_ads: "google",
+    linkedin: "linkedin",
+    linkedin_ads: "linkedin",
+    bing: "microsoft",
+    microsoft: "microsoft",
+    microsoft_ads: "microsoft",
+    tiktok: "tiktok",
+    tiktok_ads: "tiktok",
   };
+  return map[source.toLowerCase()] ?? source.toLowerCase();
+}
+
+/** Map our connector name to a display name */
+export function connectorDisplayName(connector: string): string {
+  const map: Record<string, string> = {
+    facebook: "Meta Ads",
+    google: "Google Ads",
+    linkedin: "LinkedIn Ads",
+    microsoft: "Microsoft Ads",
+    tiktok: "TikTok Ads",
+  };
+  return map[connector] ?? connector;
+}
+
+function buildWindsorUrl(apiKey: string, fields: string, datePreset: string): string {
+  const url = new URL(WINDSOR_BASE);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("date_preset", datePreset);
+  url.searchParams.set("fields", fields);
+  return url.toString();
+}
+
+function daysToPreset(days: number): string {
+  if (days <= 7) return "last_7d";
+  if (days <= 14) return "last_14d";
+  if (days <= 30) return "last_30d";
+  if (days <= 90) return "last_90d";
+  return "last_30d";
 }
 
 /**
  * Validate a Windsor API key by making a lightweight request
  */
-export async function validateWindsorKey(apiKey: string): Promise<{ valid: boolean; error?: string }> {
+export async function validateWindsorKey(apiKey: string): Promise<{ valid: boolean; error?: string; sources?: string[] }> {
   try {
-    const { dateFrom, dateTo } = getDateRange(7);
-    const url = `${WINDSOR_BASE}/${encodeURIComponent(apiKey)}?connector=facebook_ads&fields=date,spend&date_from=${dateFrom}&date_to=${dateTo}&_limit=1`;
-
+    const url = buildWindsorUrl(apiKey.trim(), "source,spend", "last_7d");
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(10000),
     });
 
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: "Invalid API key" };
+    const json = (await res.json()) as { data?: WindsorDataRow[]; error?: string; message?: string };
+
+    if (json.error?.toLowerCase().includes("api key") || json.message?.toLowerCase().includes("api key")) {
+      return { valid: false, error: "Invalid API key — check your Windsor.ai account" };
     }
 
-    if (!res.ok && res.status !== 404) {
-      const text = await res.text();
-      if (text.toLowerCase().includes("invalid") || text.toLowerCase().includes("unauthorized")) {
-        return { valid: false, error: "Invalid API key" };
-      }
+    if (json.message && !json.data) {
+      return { valid: false, error: json.message };
     }
 
-    return { valid: true };
+    const sources = [...new Set((json.data ?? []).map((r) => normalizeSource(String(r.source ?? ""))))].filter(Boolean);
+    return { valid: true, sources };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { valid: false, error: `Connection failed: ${msg}` };
@@ -115,16 +114,17 @@ export async function validateWindsorKey(apiKey: string): Promise<{ valid: boole
 }
 
 /**
- * Fetch data from Windsor for a specific connector and date range
+ * Fetch all campaign data from Windsor for the given date range
  */
 export async function fetchWindsorData(
   apiKey: string,
-  connector: string,
+  _connector: string,
   days = 30,
-  limit = 5000,
+  _limit = 5000,
 ): Promise<WindsorDataResponse> {
-  const { dateFrom, dateTo } = getDateRange(days);
-  const url = `${WINDSOR_BASE}/${encodeURIComponent(apiKey)}?connector=${connector}&fields=${CAMPAIGN_FIELDS}&date_from=${dateFrom}&date_to=${dateTo}&_limit=${limit}`;
+  const fields = "source,campaign,account_name,spend,impressions,clicks,ctr,cpc,conversions,leads,date";
+  const datePreset = daysToPreset(days);
+  const url = buildWindsorUrl(apiKey, fields, datePreset);
 
   const res = await fetch(url, {
     headers: { Accept: "application/json" },
@@ -136,44 +136,43 @@ export async function fetchWindsorData(
     return { data: [], error: `Windsor returned ${res.status}: ${text.slice(0, 200)}` };
   }
 
-  const json = (await res.json()) as { data?: WindsorDataRow[] } | WindsorDataRow[];
-  const rows = Array.isArray(json) ? json : (json as { data?: WindsorDataRow[] }).data ?? [];
+  const json = (await res.json()) as { data?: WindsorDataRow[]; error?: string; message?: string };
+
+  if (json.error || (json.message && !json.data)) {
+    return { data: [], error: json.error ?? json.message };
+  }
+
+  // Normalize field names so the rest of the app works consistently
+  const rows = (json.data ?? []).map((r) => ({
+    ...r,
+    connector: normalizeSource(String(r.source ?? "")),
+    campaign_name: String(r.campaign ?? "Unknown Campaign"),
+    account_name: String(r.account_name ?? ""),
+    spend: Number(r.spend ?? 0),
+    impressions: Number(r.impressions ?? 0),
+    clicks: Number(r.clicks ?? 0),
+    ctr: Number(r.ctr ?? 0),
+    cpc: Number(r.cpc ?? 0),
+    conversions: r.conversions != null ? Number(r.conversions) : 0,
+    leads: r.leads != null ? Number(r.leads) : 0,
+  }));
+
   return { data: rows };
 }
 
 /**
- * Fetch aggregated summary across all connectors
+ * Fetch just account names to see what's connected
  */
-export async function fetchWindsorSummary(
+export async function fetchWindsorAccounts(
   apiKey: string,
-  days = 7,
-): Promise<{ connector: string; spend: number; clicks: number; impressions: number; conversions: number; revenue: number; roas: number }[]> {
-  const results: { connector: string; spend: number; clicks: number; impressions: number; conversions: number; revenue: number; roas: number }[] = [];
-
-  for (const conn of WINDSOR_CONNECTORS.slice(0, 4)) {
-    try {
-      const { data } = await fetchWindsorData(apiKey, conn.id, days, 1000);
-      if (data.length === 0) continue;
-
-      const spend = data.reduce((s, r) => s + Number(r.spend ?? 0), 0);
-      const clicks = data.reduce((s, r) => s + Number(r.clicks ?? 0), 0);
-      const impressions = data.reduce((s, r) => s + Number(r.impressions ?? 0), 0);
-      const conversions = data.reduce((s, r) => s + Number(r.conversions ?? 0), 0);
-      const revenue = data.reduce((s, r) => s + Number(r.revenue ?? r.conversion_value ?? 0), 0);
-
-      results.push({
-        connector: conn.id,
-        spend,
-        clicks,
-        impressions,
-        conversions,
-        revenue,
-        roas: spend > 0 ? revenue / spend : 0,
-      });
-    } catch {
-      // skip failed connectors
-    }
-  }
-
-  return results;
+): Promise<{ source: string; account_name: string; spend: number }[]> {
+  const url = buildWindsorUrl(apiKey, "source,account_name,spend", "last_7d");
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return [];
+  const json = (await res.json()) as { data?: { source?: string; account_name?: string; spend?: number }[] };
+  return (json.data ?? []).map((r) => ({
+    source: normalizeSource(String(r.source ?? "")),
+    account_name: String(r.account_name ?? ""),
+    spend: Number(r.spend ?? 0),
+  }));
 }

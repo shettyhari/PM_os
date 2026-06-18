@@ -2,15 +2,48 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { windsorConnectionsTable, syncLogsTable, windsorMetricsTable, aiInsightsTable } from "@workspace/db";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
-import { fetchWindsorData, validateWindsorKey, WINDSOR_CONNECTORS } from "../services/windsor";
+import { fetchWindsorData, validateWindsorKey, fetchWindsorAccounts, WINDSOR_CONNECTORS, normalizeSource, connectorDisplayName } from "../services/windsor";
 
 const router = Router();
+
+// ─── Auto-connect from env var ────────────────────────────────────────────────
+
+async function ensureEnvKeyRegistered(userId: string): Promise<void> {
+  const envKey = process.env["WINDSOR_API_KEY"];
+  if (!envKey) return;
+
+  const [existing] = await db
+    .select({ id: windsorConnectionsTable.id, apiKey: windsorConnectionsTable.apiKey })
+    .from(windsorConnectionsTable)
+    .where(eq(windsorConnectionsTable.userId, userId))
+    .limit(1);
+
+  if (!existing) {
+    const accounts = await fetchWindsorAccounts(envKey);
+    const sources = [...new Set(accounts.map((a) => a.source))];
+    await db.insert(windsorConnectionsTable).values({
+      userId,
+      apiKey: envKey,
+      status: "connected",
+      connectedSources: sources,
+    });
+  } else if (existing.apiKey !== envKey) {
+    await db
+      .update(windsorConnectionsTable)
+      .set({ apiKey: envKey, status: "connected" })
+      .where(eq(windsorConnectionsTable.id, existing.id));
+  }
+}
 
 // ─── Connection Management ────────────────────────────────────────────────────
 
 router.get("/windsor/connection", async (req, res) => {
   try {
     const userId = req.user!.id;
+
+    // Auto-register env key if present
+    await ensureEnvKeyRegistered(userId);
+
     const [conn] = await db
       .select()
       .from(windsorConnectionsTable)
@@ -58,7 +91,8 @@ router.post("/windsor/connect", async (req, res) => {
         .set({
           apiKey: apiKey.trim(),
           status: validation.valid ? "connected" : "error",
-          lastSyncError: validation.valid ? null : validation.error,
+          lastSyncError: validation.valid ? null : (validation.error ?? null),
+          connectedSources: validation.sources ?? [],
         })
         .where(eq(windsorConnectionsTable.id, existing.id));
     } else {
@@ -66,11 +100,12 @@ router.post("/windsor/connect", async (req, res) => {
         userId,
         apiKey: apiKey.trim(),
         status: validation.valid ? "connected" : "error",
-        lastSyncError: validation.valid ? null : validation.error,
+        lastSyncError: validation.valid ? null : (validation.error ?? null),
+        connectedSources: validation.sources ?? [],
       });
     }
 
-    return void res.json({ valid: validation.valid, error: validation.error });
+    return void res.json({ valid: validation.valid, error: validation.error, sources: validation.sources });
   } catch (err) {
     req.log.error({ err }, "Failed to connect Windsor");
     return void res.status(500).json({ error: "Internal server error" });
@@ -119,7 +154,8 @@ router.get("/windsor/sources", (_req, res) => {
 router.post("/windsor/sync", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { connector } = req.body as { connector?: string };
+
+    await ensureEnvKeyRegistered(userId);
 
     const [conn] = await db
       .select()
@@ -128,99 +164,97 @@ router.post("/windsor/sync", async (req, res) => {
       .limit(1);
 
     if (!conn) {
-      return void res.status(400).json({ error: "No active Windsor connection. Connect your API key first." });
+      return void res.status(400).json({ error: "No active Windsor connection." });
     }
 
-    const connectorsToSync = connector
-      ? WINDSOR_CONNECTORS.filter((c) => c.id === connector)
-      : WINDSOR_CONNECTORS.slice(0, 4);
+    res.json({ message: "Sync started", connectors: ["all"] });
 
-    res.json({ message: "Sync started", connectors: connectorsToSync.map((c) => c.id) });
-
-    // Background sync (fire-and-forget)
-    void runSync(conn.id, userId, conn.apiKey, connectorsToSync.map((c) => c.id));
+    // Background sync — fire and forget
+    void runSync(conn.id, userId, conn.apiKey);
   } catch (err) {
     req.log.error({ err }, "Failed to start sync");
     return void res.status(500).json({ error: "Internal server error" });
   }
 });
 
-async function runSync(connectionId: number, userId: string, apiKey: string, connectors: string[]) {
-  for (const connector of connectors) {
-    const startedAt = Date.now();
-    const [log] = await db
-      .insert(syncLogsTable)
-      .values({ windsorConnectionId: connectionId, userId, status: "running", connector })
-      .returning();
+async function runSync(connectionId: number, userId: string, apiKey: string) {
+  const startedAt = Date.now();
+  const [log] = await db
+    .insert(syncLogsTable)
+    .values({ windsorConnectionId: connectionId, userId, status: "running", connector: "all" })
+    .returning();
 
-    try {
-      const { data, error } = await fetchWindsorData(apiKey, connector, 30, 5000);
+  try {
+    const { data, error } = await fetchWindsorData(apiKey, "all", 30, 5000);
 
-      if (error && data.length === 0) {
-        await db
-          .update(syncLogsTable)
-          .set({ status: "error", errorMessage: error, durationMs: Date.now() - startedAt })
-          .where(eq(syncLogsTable.id, log.id));
-        continue;
-      }
-
-      if (data.length > 0) {
-        await db
-          .delete(windsorMetricsTable)
-          .where(and(eq(windsorMetricsTable.userId, userId), eq(windsorMetricsTable.connector, connector)));
-
-        const rows = data.map((row) => ({
-          userId,
-          windsorConnectionId: connectionId,
-          connector,
-          date: String(row.date ?? new Date().toISOString().split("T")[0]),
-          accountId: String(row.account_id ?? ""),
-          accountName: String(row.account_name ?? ""),
-          campaignId: String(row.campaign_id ?? ""),
-          campaignName: String(row.campaign_name ?? "Unknown"),
-          adsetId: String(row.adset_id ?? ""),
-          adsetName: String(row.adset_name ?? ""),
-          adId: String(row.ad_id ?? ""),
-          adName: String(row.ad_name ?? ""),
-          status: String(row.status ?? ""),
-          spend: Number(row.spend ?? 0),
-          impressions: Number(row.impressions ?? 0),
-          clicks: Number(row.clicks ?? 0),
-          ctr: Number(row.ctr ?? 0),
-          cpc: Number(row.cpc ?? 0),
-          cpm: Number(row.cpm ?? 0),
-          conversions: Number(row.conversions ?? 0),
-          conversionValue: Number(row.conversion_value ?? 0),
-          roas: Number(row.roas ?? 0),
-          cpa: Number(row.cpa ?? 0),
-          reach: Number(row.reach ?? 0),
-          leads: Number(row.leads ?? 0),
-          revenue: Number(row.revenue ?? row.conversion_value ?? 0),
-          rawData: row,
-        }));
-
-        for (let i = 0; i < rows.length; i += 500) {
-          await db.insert(windsorMetricsTable).values(rows.slice(i, i + 500));
-        }
-      }
-
+    if (error && data.length === 0) {
       await db
         .update(syncLogsTable)
-        .set({ status: "success", recordsImported: data.length, durationMs: Date.now() - startedAt })
+        .set({ status: "error", errorMessage: error, durationMs: Date.now() - startedAt })
         .where(eq(syncLogsTable.id, log.id));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+
       await db
-        .update(syncLogsTable)
-        .set({ status: "error", errorMessage: msg, durationMs: Date.now() - startedAt })
-        .where(eq(syncLogsTable.id, log.id));
+        .update(windsorConnectionsTable)
+        .set({ lastSyncAt: new Date(), lastSyncStatus: "error", lastSyncError: error })
+        .where(eq(windsorConnectionsTable.id, connectionId));
+      return;
     }
-  }
 
-  await db
-    .update(windsorConnectionsTable)
-    .set({ lastSyncAt: new Date(), lastSyncStatus: "success" })
-    .where(eq(windsorConnectionsTable.id, connectionId));
+    if (data.length > 0) {
+      // Clear existing metrics for this user and re-insert fresh
+      await db.delete(windsorMetricsTable).where(eq(windsorMetricsTable.userId, userId));
+
+      const today = new Date().toISOString().split("T")[0]!;
+      const rows = data.map((row) => ({
+        userId,
+        windsorConnectionId: connectionId,
+        connector: String(row.connector ?? normalizeSource(String(row.source ?? "unknown"))),
+        date: String(row.date ?? today),
+        accountName: String(row.account_name ?? ""),
+        campaignName: String(row.campaign_name ?? row.campaign ?? "Unknown"),
+        spend: Number(row.spend ?? 0),
+        impressions: Number(row.impressions ?? 0),
+        clicks: Number(row.clicks ?? 0),
+        ctr: Number(row.ctr ?? 0),
+        cpc: Number(row.cpc ?? 0),
+        conversions: Number(row.conversions ?? 0),
+        leads: Number(row.leads ?? 0),
+        revenue: Number(row.revenue ?? row.conversion_value ?? 0),
+        rawData: row,
+      }));
+
+      for (let i = 0; i < rows.length; i += 500) {
+        await db.insert(windsorMetricsTable).values(rows.slice(i, i + 500));
+      }
+
+      // Update connected sources
+      const sources = [...new Set(data.map((r) => String(r.connector ?? "")))].filter(Boolean);
+      await db
+        .update(windsorConnectionsTable)
+        .set({ connectedSources: sources })
+        .where(eq(windsorConnectionsTable.id, connectionId));
+    }
+
+    await db
+      .update(syncLogsTable)
+      .set({ status: "success", recordsImported: data.length, durationMs: Date.now() - startedAt })
+      .where(eq(syncLogsTable.id, log.id));
+
+    await db
+      .update(windsorConnectionsTable)
+      .set({ lastSyncAt: new Date(), lastSyncStatus: "success", lastSyncError: null })
+      .where(eq(windsorConnectionsTable.id, connectionId));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await db
+      .update(syncLogsTable)
+      .set({ status: "error", errorMessage: msg, durationMs: Date.now() - startedAt })
+      .where(eq(syncLogsTable.id, log.id));
+    await db
+      .update(windsorConnectionsTable)
+      .set({ lastSyncAt: new Date(), lastSyncStatus: "error", lastSyncError: msg })
+      .where(eq(windsorConnectionsTable.id, connectionId));
+  }
 }
 
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
@@ -233,7 +267,7 @@ router.get("/windsor/sync-logs", async (req, res) => {
       .from(syncLogsTable)
       .where(eq(syncLogsTable.userId, userId))
       .orderBy(desc(syncLogsTable.createdAt))
-      .limit(50);
+      .limit(20);
     return void res.json(logs.map((l) => ({ ...l, createdAt: l.createdAt.toISOString() })));
   } catch (err) {
     req.log.error({ err }, "Failed to get sync logs");
@@ -275,7 +309,7 @@ router.get("/windsor/metrics", async (req, res) => {
 router.get("/windsor/summary", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { days = "7" } = req.query as { days?: string };
+    const { days = "30" } = req.query as { days?: string };
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - parseInt(days));
@@ -298,7 +332,6 @@ router.get("/windsor/summary", async (req, res) => {
     const totalSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
     const totalRevenue = rows.reduce((s, r) => s + Number(r.totalRevenue), 0);
     const totalClicks = rows.reduce((s, r) => s + Number(r.totalClicks), 0);
-    const totalImpressions = rows.reduce((s, r) => s + Number(r.totalImpressions), 0);
     const totalConversions = rows.reduce((s, r) => s + Number(r.totalConversions), 0);
     const totalLeads = rows.reduce((s, r) => s + Number(r.totalLeads), 0);
 
@@ -309,6 +342,7 @@ router.get("/windsor/summary", async (req, res) => {
         const conversions = Number(r.totalConversions);
         return {
           connector: r.connector,
+          displayName: connectorDisplayName(r.connector),
           totalSpend: spend,
           totalClicks: Number(r.totalClicks),
           totalImpressions: Number(r.totalImpressions),
@@ -327,9 +361,11 @@ router.get("/windsor/summary", async (req, res) => {
         leads: totalLeads,
         roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
         cpa: totalConversions > 0 ? totalSpend / totalConversions : 0,
-        ctr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
+        ctr: rows.reduce((s, r) => s + Number(r.totalImpressions), 0) > 0
+          ? totalClicks / rows.reduce((s, r) => s + Number(r.totalImpressions), 0) : 0,
       },
       days: parseInt(days),
+      hasData: rows.length > 0,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to get Windsor summary");
@@ -337,7 +373,7 @@ router.get("/windsor/summary", async (req, res) => {
   }
 });
 
-// ─── AI Insights / Morning Briefing ──────────────────────────────────────────
+// ─── AI Insights ─────────────────────────────────────────────────────────────
 
 router.get("/windsor/insights/today", async (req, res) => {
   try {
@@ -380,6 +416,7 @@ router.post("/windsor/insights/generate", async (req, res) => {
         totalConversions: sql<number>`coalesce(sum(${windsorMetricsTable.conversions}), 0)`,
         totalRevenue: sql<number>`coalesce(sum(${windsorMetricsTable.revenue}), 0)`,
         totalLeads: sql<number>`coalesce(sum(${windsorMetricsTable.leads}), 0)`,
+        totalClicks: sql<number>`coalesce(sum(${windsorMetricsTable.clicks}), 0)`,
       })
       .from(windsorMetricsTable)
       .where(and(eq(windsorMetricsTable.userId, userId), gte(windsorMetricsTable.date, cutoffStr)))
@@ -392,12 +429,13 @@ router.post("/windsor/insights/generate", async (req, res) => {
     let content: string;
 
     if (!hasData) {
-      content = `## ${greeting}! 👋\n\nYour marketing command center is ready. Connect your Windsor.ai API key under **Integrations → Windsor.ai** and run your first data sync to unlock your personalized daily briefing.\n\nOnce connected, I'll automatically analyze your spend, ROAS, leads, and campaign performance across Meta, Google, LinkedIn, and more — every morning.`;
+      content = `## ${greeting}! 👋\n\nYour marketing command center is ready. Windsor.ai is connected — click **Sync Now** on the Integrations page to pull your live campaign data.\n\nOnce synced, I'll analyze your spend, ROAS, leads, and campaign performance across all your connected platforms every day.`;
     } else {
       const totalSpend = rows.reduce((s, r) => s + Number(r.totalSpend), 0);
       const totalRevenue = rows.reduce((s, r) => s + Number(r.totalRevenue), 0);
       const totalLeads = rows.reduce((s, r) => s + Number(r.totalLeads), 0);
       const totalConversions = rows.reduce((s, r) => s + Number(r.totalConversions), 0);
+      const totalClicks = rows.reduce((s, r) => s + Number(r.totalClicks), 0);
       const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
       const platformLines = rows
@@ -405,21 +443,23 @@ router.post("/windsor/insights/generate", async (req, res) => {
         .map((r) => {
           const spend = Number(r.totalSpend);
           const pct = totalSpend > 0 ? ((spend / totalSpend) * 100).toFixed(0) : "0";
-          return `- **${r.connector.replace(/_/g, " ")}**: $${spend.toFixed(0)} spend (${pct}%), ${Number(r.totalLeads)} leads`;
+          const name = connectorDisplayName(r.connector);
+          return `- **${name}**: ₹${spend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} spend (${pct}%), ${Number(r.totalClicks).toLocaleString()} clicks`;
         })
         .join("\n");
 
       const roasSignal =
-        roas < 2
-          ? "⚠️ **ROAS below 2x** — review budget allocation on underperforming platforms."
-          : roas > 5
-            ? "🚀 **Excellent ROAS** — good time to scale top campaigns."
-            : "✅ **Healthy ROAS** — look for scaling opportunities.";
+        roas === 0
+          ? "📊 **Revenue tracking not yet configured** — connect conversion tracking to measure ROAS."
+          : roas < 2
+            ? "⚠️ **ROAS below 2x** — review budget allocation and creative performance."
+            : roas > 5
+              ? "🚀 **Excellent ROAS** — scale top campaigns to capture more volume."
+              : "✅ **Healthy ROAS** — look for optimization opportunities.";
 
-      content = `## ${greeting}! Here's your 7-day marketing snapshot 📊\n\n| Metric | Value |\n|---|---|\n| Total Spend | $${totalSpend.toLocaleString("en-US", { maximumFractionDigits: 0 })} |\n| Revenue | $${totalRevenue.toLocaleString("en-US", { maximumFractionDigits: 0 })} |\n| ROAS | ${roas.toFixed(2)}x |\n| Leads | ${totalLeads.toLocaleString()} |\n| Conversions | ${totalConversions.toLocaleString()} |\n\n**By Platform:**\n${platformLines}\n\n${roasSignal}\n\nAsk me anything — "show worst campaigns", "compare platforms", or "where should I cut budget?"`;
+      content = `## ${greeting}! Here's your 7-day marketing snapshot 📊\n\n| Metric | Value |\n|---|---|\n| Total Spend | ₹${totalSpend.toLocaleString("en-IN", { maximumFractionDigits: 0 })} |\n| Revenue | ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })} |\n| ROAS | ${roas.toFixed(2)}x |\n| Leads | ${totalLeads.toLocaleString()} |\n| Clicks | ${totalClicks.toLocaleString()} |\n\n**By Platform (7-day spend):**\n${platformLines}\n\n${roasSignal}\n\nAsk me anything — "show worst campaigns", "compare platforms", or "where should I cut budget?"`;
     }
 
-    // Upsert today's briefing
     const [existing] = await db
       .select({ id: aiInsightsTable.id })
       .from(aiInsightsTable)
@@ -436,7 +476,14 @@ router.post("/windsor/insights/generate", async (req, res) => {
     } else {
       [saved] = await db
         .insert(aiInsightsTable)
-        .values({ userId, type: "morning_briefing", title: "Daily Marketing Briefing", content, date: today, metadata: { hasData, rowCount: rows.length } })
+        .values({
+          userId,
+          type: "morning_briefing",
+          title: "Daily Marketing Briefing",
+          content,
+          date: today,
+          metadata: { hasData, rowCount: rows.length },
+        })
         .returning();
     }
 

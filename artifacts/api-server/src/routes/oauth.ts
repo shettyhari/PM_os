@@ -94,7 +94,7 @@ router.get("/oauth/status", requireAuth, async (req, res) => {
   try {
     const userId = req.user!.id;
     const tokens = await db
-      .select({ platform: oauthTokensTable.platform, accountName: oauthTokensTable.accountName, updatedAt: oauthTokensTable.updatedAt })
+      .select({ platform: oauthTokensTable.platform, updatedAt: oauthTokensTable.updatedAt })
       .from(oauthTokensTable)
       .where(eq(oauthTokensTable.userId, userId));
 
@@ -105,7 +105,7 @@ router.get("/oauth/status", requireAuth, async (req, res) => {
         return {
           platform: key,
           connected: !!token,
-          accountName: token?.accountName ?? null,
+          accountName: null,
           lastSync: token?.updatedAt ? token.updatedAt.toISOString() : null,
           needsConfig: await platformNeedsConfig(userId, key),
         };

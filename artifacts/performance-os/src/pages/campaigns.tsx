@@ -17,11 +17,11 @@ export default function Campaigns() {
 
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
-      case 'google': return <SiGoogleads className="w-4 h-4 text-[#4285F4]" />;
-      case 'meta': return <SiMeta className="w-4 h-4 text-[#0082FB]" />;
-      case 'linkedin': return <Linkedin className="w-4 h-4 text-[#0A66C2]" />;
-      case 'microsoft': return <Globe className="w-4 h-4 text-[#00A4EF]" />;
-      default: return null;
+      case 'google': case 'google_ads': return <SiGoogleads className="w-4 h-4 text-[#4285F4]" />;
+      case 'meta': case 'facebook': case 'facebook_ads': return <SiMeta className="w-4 h-4 text-[#0082FB]" />;
+      case 'linkedin': case 'linkedin_ads': return <Linkedin className="w-4 h-4 text-[#0A66C2]" />;
+      case 'microsoft': case 'microsoft_ads': return <Globe className="w-4 h-4 text-[#00A4EF]" />;
+      default: return <Globe className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -105,7 +105,12 @@ export default function Campaigns() {
                         <div className="p-1.5 rounded bg-muted">
                           {getPlatformIcon(campaign.platform)}
                         </div>
-                        <span className="truncate">{campaign.name}</span>
+                        <div className="min-w-0">
+                          <div className="truncate">{campaign.name}</div>
+                          {campaign.accountName && (
+                            <div className="text-xs text-muted-foreground truncate">{campaign.accountName}</div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -114,7 +119,7 @@ export default function Campaigns() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(campaign.spend)}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{campaign.ctr.toFixed(2)}%</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{(campaign.ctr * 100).toFixed(2)}%</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatCurrency(campaign.cpa)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatNumber(campaign.leads)}</TableCell>
                     <TableCell className="text-right font-mono text-sm font-semibold">{campaign.roas.toFixed(2)}x</TableCell>

@@ -28,14 +28,21 @@ router.get("/alerts", async (req, res) => {
 router.post("/alerts", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { type, title, message, severity, campaignId } = req.body as Record<string, string>;
+    const { type, title, description, severity, campaignId } = req.body as Record<string, string>;
 
     const [created] = await db
       .insert(alertsTable)
-      .values({ userId, type: type as "high_cpa", title, message, severity: severity as "medium", campaignId: campaignId ? parseInt(campaignId) : undefined })
+      .values({
+        userId,
+        type: type as "high_cpa",
+        title,
+        description,
+        severity: severity as "medium",
+        campaignId: campaignId ? parseInt(campaignId) : undefined,
+      })
       .returning();
 
-    res.status(201).json({ ...created, createdAt: created.createdAt.toISOString() });
+    res.status(201).json({ ...created, createdAt: created!.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to create alert");
     res.status(500).json({ error: "Internal server error" });
@@ -61,6 +68,17 @@ router.patch("/alerts/:id/read", async (req, res) => {
     res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Failed to mark alert as read");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/alerts/read-all", async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    await db.update(alertsTable).set({ isRead: true }).where(eq(alertsTable.userId, userId));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to mark all alerts as read");
     res.status(500).json({ error: "Internal server error" });
   }
 });

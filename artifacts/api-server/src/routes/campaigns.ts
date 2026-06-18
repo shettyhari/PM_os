@@ -1,19 +1,94 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { campaignsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { windsorMetricsTable } from "@workspace/db";
+import { eq, and, gte } from "drizzle-orm";
+import { connectorDisplayName } from "../services/windsor";
 
 const router = Router();
+
+function cutoffDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split("T")[0]!;
+}
+
+/** Aggregate Windsor metrics into campaign-level rows */
+async function buildCampaignList(userId: string, days = 30) {
+  const rows = await db
+    .select()
+    .from(windsorMetricsTable)
+    .where(and(eq(windsorMetricsTable.userId, userId), gte(windsorMetricsTable.date, cutoffDate(days))));
+
+  // Group by connector × campaignName
+  const map: Record<
+    string,
+    {
+      id: string;
+      name: string;
+      platform: string;
+      displayName: string;
+      accountName: string;
+      status: string;
+      spend: number;
+      clicks: number;
+      impressions: number;
+      ctr: number;
+      cpc: number;
+      leads: number;
+      conversions: number;
+      revenue: number;
+      roas: number;
+      days: number;
+      updatedAt: string;
+    }
+  > = {};
+
+  for (const r of rows) {
+    const key = `${r.connector}::${r.campaignName ?? "Unknown"}`;
+    if (!map[key]) {
+      map[key] = {
+        id: key,
+        name: r.campaignName ?? "Unknown",
+        platform: r.connector,
+        displayName: connectorDisplayName(r.connector),
+        accountName: r.accountName ?? "",
+        status: "active",
+        spend: 0,
+        clicks: 0,
+        impressions: 0,
+        ctr: 0,
+        cpc: 0,
+        leads: 0,
+        conversions: 0,
+        revenue: 0,
+        roas: 0,
+        days,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    map[key].spend += r.spend ?? 0;
+    map[key].clicks += r.clicks ?? 0;
+    map[key].impressions += r.impressions ?? 0;
+    map[key].leads += r.leads ?? 0;
+    map[key].conversions += r.conversions ?? 0;
+    map[key].revenue += r.revenue ?? 0;
+  }
+
+  return Object.values(map).map((c) => ({
+    ...c,
+    ctr: c.impressions > 0 ? c.clicks / c.impressions : 0,
+    cpc: c.clicks > 0 ? c.spend / c.clicks : 0,
+    roas: c.spend > 0 ? c.revenue / c.spend : 0,
+    cpa: (c.leads + c.conversions) > 0 ? c.spend / (c.leads + c.conversions) : 0,
+  }));
+}
 
 router.get("/campaigns", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { platform, status, search } = req.query as Record<string, string>;
+    const { platform, status, search, days = "30" } = req.query as Record<string, string>;
 
-    let campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    let campaigns = await buildCampaignList(userId, parseInt(days));
 
     if (platform && platform !== "all") {
       campaigns = campaigns.filter((c) => c.platform === platform);
@@ -26,26 +101,9 @@ router.get("/campaigns", async (req, res) => {
       campaigns = campaigns.filter((c) => c.name.toLowerCase().includes(q));
     }
 
-    res.json(campaigns.map((c) => ({ ...c, updatedAt: c.updatedAt.toISOString() })));
+    res.json(campaigns);
   } catch (err) {
     req.log.error({ err }, "Failed to list campaigns");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.post("/campaigns", async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const { name, platform, budget, startDate } = req.body as Record<string, string>;
-
-    const [created] = await db
-      .insert(campaignsTable)
-      .values({ userId, name, platform: platform as "google", budget: Number(budget) || 0, startDate, status: "draft" })
-      .returning();
-
-    res.status(201).json({ ...created, updatedAt: created.updatedAt.toISOString() });
-  } catch (err) {
-    req.log.error({ err }, "Failed to create campaign");
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -53,13 +111,9 @@ router.post("/campaigns", async (req, res) => {
 router.get("/campaigns/top-performers", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
-
-    const sorted = [...campaigns].sort((a, b) => (b.roas || 0) - (a.roas || 0)).slice(0, 5);
-    res.json(sorted.map((c) => ({ ...c, updatedAt: c.updatedAt.toISOString() })));
+    const campaigns = await buildCampaignList(userId, 30);
+    const sorted = campaigns.sort((a, b) => b.spend - a.spend).slice(0, 5);
+    res.json(sorted);
   } catch (err) {
     req.log.error({ err }, "Failed to get top performers");
     res.status(500).json({ error: "Internal server error" });
@@ -69,23 +123,21 @@ router.get("/campaigns/top-performers", async (req, res) => {
 router.get("/campaigns/wasted-spend", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const campaigns = await db
-      .select()
-      .from(campaignsTable)
-      .where(eq(campaignsTable.userId, userId));
+    const campaigns = await buildCampaignList(userId, 30);
 
-    const wastedCampaigns = campaigns
-      .filter((c) => (c.roas || 0) < 1.5 && (c.spend || 0) > 5000)
+    const wasted = campaigns
+      .filter((c) => c.spend > 5000 && (c.leads + c.conversions) === 0)
       .map((c) => ({
         campaignId: c.id,
         campaignName: c.name,
         platform: c.platform,
-        wastedAmount: (c.spend || 0) * 0.4,
-        reason: (c.roas || 0) < 0.5 ? "ROAS below break-even" : "High CPA with low conversion rate",
+        displayName: c.displayName,
+        wastedAmount: c.spend,
+        reason: "No conversions tracked — conversion tracking not configured",
       }));
 
-    const totalWasted = wastedCampaigns.reduce((s, c) => s + c.wastedAmount, 0);
-    res.json({ totalWasted, campaigns: wastedCampaigns });
+    const totalWasted = wasted.reduce((s, c) => s + c.wastedAmount, 0);
+    res.json({ totalWasted, campaigns: wasted });
   } catch (err) {
     req.log.error({ err }, "Failed to get wasted spend");
     res.status(500).json({ error: "Internal server error" });
@@ -95,50 +147,19 @@ router.get("/campaigns/wasted-spend", async (req, res) => {
 router.get("/campaigns/:id", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const id = parseInt(req.params["id"]!);
+    const id = req.params["id"]!;
 
-    const [campaign] = await db
-      .select()
-      .from(campaignsTable)
-      .where(and(eq(campaignsTable.id, id), eq(campaignsTable.userId, userId)));
+    const campaigns = await buildCampaignList(userId, 30);
+    const campaign = campaigns.find((c) => c.id === decodeURIComponent(id));
 
     if (!campaign) {
       res.status(404).json({ error: "Campaign not found" });
       return;
     }
 
-    res.json({ ...campaign, updatedAt: campaign.updatedAt.toISOString() });
+    res.json(campaign);
   } catch (err) {
     req.log.error({ err }, "Failed to get campaign");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-router.patch("/campaigns/:id", async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const id = parseInt(req.params["id"]!);
-    const { name, status, budget } = req.body as Record<string, string>;
-
-    const updates: Partial<typeof campaignsTable.$inferInsert> = {};
-    if (name !== undefined) updates.name = name;
-    if (status !== undefined) updates.status = status as "active";
-    if (budget !== undefined) updates.budget = Number(budget);
-
-    const [updated] = await db
-      .update(campaignsTable)
-      .set(updates)
-      .where(and(eq(campaignsTable.id, id), eq(campaignsTable.userId, userId)))
-      .returning();
-
-    if (!updated) {
-      res.status(404).json({ error: "Campaign not found" });
-      return;
-    }
-
-    res.json({ ...updated, updatedAt: updated.updatedAt.toISOString() });
-  } catch (err) {
-    req.log.error({ err }, "Failed to update campaign");
     res.status(500).json({ error: "Internal server error" });
   }
 });

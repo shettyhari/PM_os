@@ -274,24 +274,23 @@ export const ListCampaignsQueryParams = zod.object({
 })
 
 export const ListCampaignsResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
-  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft']),
+  "platform": zod.string(),
+  "displayName": zod.string(),
+  "accountName": zod.string(),
   "status": zod.enum(['active', 'paused', 'ended', 'draft']),
   "spend": zod.number(),
   "clicks": zod.number(),
+  "impressions": zod.number(),
   "ctr": zod.number(),
   "cpc": zod.number(),
   "leads": zod.number(),
+  "conversions": zod.number(),
   "cpa": zod.number(),
   "roas": zod.number(),
   "revenue": zod.number(),
-  "impressions": zod.number().optional(),
-  "cpm": zod.number().optional(),
-  "conversionRate": zod.number().optional(),
-  "budget": zod.number().optional(),
-  "startDate": zod.string().optional(),
-  "endDate": zod.string().nullish(),
+  "days": zod.number(),
   "updatedAt": zod.string()
 })
 export const ListCampaignsResponse = zod.array(ListCampaignsResponseItem)
@@ -316,24 +315,23 @@ export const GetCampaignParams = zod.object({
 })
 
 export const GetCampaignResponse = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
-  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft']),
+  "platform": zod.string(),
+  "displayName": zod.string(),
+  "accountName": zod.string(),
   "status": zod.enum(['active', 'paused', 'ended', 'draft']),
   "spend": zod.number(),
   "clicks": zod.number(),
+  "impressions": zod.number(),
   "ctr": zod.number(),
   "cpc": zod.number(),
   "leads": zod.number(),
+  "conversions": zod.number(),
   "cpa": zod.number(),
   "roas": zod.number(),
   "revenue": zod.number(),
-  "impressions": zod.number().optional(),
-  "cpm": zod.number().optional(),
-  "conversionRate": zod.number().optional(),
-  "budget": zod.number().optional(),
-  "startDate": zod.string().optional(),
-  "endDate": zod.string().nullish(),
+  "days": zod.number(),
   "updatedAt": zod.string()
 })
 
@@ -352,24 +350,23 @@ export const UpdateCampaignBody = zod.object({
 })
 
 export const UpdateCampaignResponse = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
-  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft']),
+  "platform": zod.string(),
+  "displayName": zod.string(),
+  "accountName": zod.string(),
   "status": zod.enum(['active', 'paused', 'ended', 'draft']),
   "spend": zod.number(),
   "clicks": zod.number(),
+  "impressions": zod.number(),
   "ctr": zod.number(),
   "cpc": zod.number(),
   "leads": zod.number(),
+  "conversions": zod.number(),
   "cpa": zod.number(),
   "roas": zod.number(),
   "revenue": zod.number(),
-  "impressions": zod.number().optional(),
-  "cpm": zod.number().optional(),
-  "conversionRate": zod.number().optional(),
-  "budget": zod.number().optional(),
-  "startDate": zod.string().optional(),
-  "endDate": zod.string().nullish(),
+  "days": zod.number(),
   "updatedAt": zod.string()
 })
 
@@ -378,24 +375,23 @@ export const UpdateCampaignResponse = zod.object({
  * @summary Get top performing campaigns by ROAS
  */
 export const GetTopPerformersResponseItem = zod.object({
-  "id": zod.number(),
+  "id": zod.string(),
   "name": zod.string(),
-  "platform": zod.enum(['google', 'meta', 'linkedin', 'microsoft']),
+  "platform": zod.string(),
+  "displayName": zod.string(),
+  "accountName": zod.string(),
   "status": zod.enum(['active', 'paused', 'ended', 'draft']),
   "spend": zod.number(),
   "clicks": zod.number(),
+  "impressions": zod.number(),
   "ctr": zod.number(),
   "cpc": zod.number(),
   "leads": zod.number(),
+  "conversions": zod.number(),
   "cpa": zod.number(),
   "roas": zod.number(),
   "revenue": zod.number(),
-  "impressions": zod.number().optional(),
-  "cpm": zod.number().optional(),
-  "conversionRate": zod.number().optional(),
-  "budget": zod.number().optional(),
-  "startDate": zod.string().optional(),
-  "endDate": zod.string().nullish(),
+  "days": zod.number(),
   "updatedAt": zod.string()
 })
 export const GetTopPerformersResponse = zod.array(GetTopPerformersResponseItem)

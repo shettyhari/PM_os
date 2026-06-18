@@ -1,97 +1,109 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { oauthTokensTable, userSettingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { windsorConnectionsTable, windsorMetricsTable } from "@workspace/db";
+import { eq, gte, and } from "drizzle-orm";
+import { connectorDisplayName } from "../services/windsor";
 
 const router = Router();
 
-const PLATFORM_META: Record<string, { name: string; description: string; color: string; docsUrl: string }> = {
-  google: {
-    name: "Google Ads",
-    description: "Sync campaigns, ad groups, keywords, and performance metrics from your Google Ads accounts.",
-    color: "#4285F4",
-    docsUrl: "https://developers.google.com/google-ads/api/docs/start",
-  },
+const PLATFORM_META: Record<
+  string,
+  { name: string; description: string; color: string; docsUrl: string; windsorConnector?: string }
+> = {
   meta: {
     name: "Meta Ads",
-    description: "Import Facebook & Instagram campaigns, audiences, and cross-channel attribution data.",
+    description: "Facebook & Instagram campaigns via Windsor.ai aggregation.",
     color: "#0082FB",
-    docsUrl: "https://developers.facebook.com/docs/marketing-api/get-started",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "facebook",
+  },
+  google: {
+    name: "Google Ads",
+    description: "Google Ads campaigns, ad groups, and keywords via Windsor.ai.",
+    color: "#4285F4",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "google_ads",
   },
   linkedin: {
     name: "LinkedIn Ads",
-    description: "Sync LinkedIn Campaign Manager data including sponsored content and lead gen forms.",
+    description: "LinkedIn sponsored content and lead gen forms via Windsor.ai.",
     color: "#0A66C2",
-    docsUrl: "https://docs.microsoft.com/en-us/linkedin/marketing/",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "linkedin_ads",
   },
   microsoft: {
     name: "Microsoft Ads",
-    description: "Connect Microsoft Advertising for Bing Search, audience ads, and shopping campaigns.",
+    description: "Bing Search and audience ads via Windsor.ai.",
     color: "#00A4EF",
-    docsUrl: "https://docs.microsoft.com/en-us/advertising/guides/",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "microsoft_ads",
   },
   ga4: {
     name: "Google Analytics 4",
-    description: "Pull GA4 events, conversions, user journeys, and attribution data for unified reporting.",
+    description: "GA4 events, conversions, and user journeys via Windsor.ai.",
     color: "#E37400",
-    docsUrl: "https://developers.google.com/analytics/devguides/reporting/data/v1",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "google_analytics_4",
   },
-  gtm: {
-    name: "Google Tag Manager",
-    description: "Manage and audit your GTM containers, tags, triggers, and data layer configuration.",
-    color: "#246FDB",
-    docsUrl: "https://developers.google.com/tag-platform/tag-manager/api/v2",
+  tiktok: {
+    name: "TikTok Ads",
+    description: "TikTok Ads campaigns and creative performance via Windsor.ai.",
+    color: "#010101",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "tiktok_ads",
   },
   search_console: {
     name: "Google Search Console",
-    description: "Import organic search data, keyword rankings, impressions, and CTR from Search Console.",
+    description: "Organic search rankings, impressions, and CTR via Windsor.ai.",
     color: "#4285F4",
-    docsUrl: "https://developers.google.com/webmaster-tools",
+    docsUrl: "https://windsor.ai",
+    windsorConnector: "google_search_console",
   },
 };
 
-/** Check if a platform needs credentials configured (env or DB) */
-function platformNeedsConfigSync(
-  key: string,
-  userSettings: { googleClientId: string | null; metaAppId: string | null } | null,
-): boolean {
-  if (key === "google" || key === "ga4" || key === "gtm" || key === "search_console") {
-    return !process.env["GOOGLE_CLIENT_ID"] && !userSettings?.googleClientId;
-  }
-  if (key === "meta") return !process.env["META_APP_ID"] && !userSettings?.metaAppId;
-  if (key === "linkedin") return !process.env["LINKEDIN_CLIENT_ID"];
-  if (key === "microsoft") return !process.env["MICROSOFT_CLIENT_ID"];
-  return true;
+function cutoffDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split("T")[0]!;
 }
 
 router.get("/integrations", async (req, res) => {
   try {
     const userId = req.user!.id;
 
-    const [tokens, settingsRows] = await Promise.all([
-      db.select().from(oauthTokensTable).where(eq(oauthTokensTable.userId, userId)),
-      db.select({ googleClientId: userSettingsTable.googleClientId, metaAppId: userSettingsTable.metaAppId })
-        .from(userSettingsTable).where(eq(userSettingsTable.userId, userId)),
+    // Fetch Windsor connection and recent metrics to know which connectors have data
+    const [connectionRows, recentMetrics] = await Promise.all([
+      db.select().from(windsorConnectionsTable).where(eq(windsorConnectionsTable.userId, userId)),
+      db
+        .select({ connector: windsorMetricsTable.connector })
+        .from(windsorMetricsTable)
+        .where(and(eq(windsorMetricsTable.userId, userId), gte(windsorMetricsTable.date, cutoffDate(30)))),
     ]);
 
-    const userSettings = settingsRows[0] ?? null;
+    const windsorConn = connectionRows[0] ?? null;
+    const isWindsorConnected = windsorConn?.status === "connected";
+
+    // Build set of connectors that have actual data in the last 30 days
+    const activeConnectors = new Set(recentMetrics.map((r) => r.connector));
 
     const integrations = Object.entries(PLATFORM_META).map(([key, meta], idx) => {
-      const oauthPlatform = key === "ga4" || key === "gtm" || key === "search_console" ? "google" : key;
-      const token = tokens.find((t) => t.platform === oauthPlatform);
+      const wc = meta.windsorConnector;
+      const hasData = wc ? activeConnectors.has(wc) : false;
+      const isConnected = isWindsorConnected && hasData;
 
       return {
         id: idx + 1,
         platform: key,
         name: meta.name,
-        status: token ? "connected" : "disconnected",
-        accountsConnected: token ? 1 : 0,
-        lastSync: token?.updatedAt ? token.updatedAt.toISOString() : null,
+        status: isConnected ? "connected" : isWindsorConnected ? "available" : "disconnected",
+        accountsConnected: isConnected ? 1 : 0,
+        lastSync: isConnected ? windsorConn!.lastSyncAt?.toISOString() ?? null : null,
         description: meta.description,
-        accountName: token?.accountName ?? null,
+        accountName: isConnected ? connectorDisplayName(wc ?? key) + " via Windsor.ai" : null,
         color: meta.color,
         docsUrl: meta.docsUrl,
-        needsConfig: platformNeedsConfigSync(key, userSettings),
+        needsConfig: !isWindsorConnected,
+        via: "windsor",
       };
     });
 

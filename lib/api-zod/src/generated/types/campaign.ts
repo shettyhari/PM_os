@@ -5,28 +5,25 @@
  * PerformanceOS AI - Marketing Operating System API
  * OpenAPI spec version: 0.1.0
  */
-import type { CampaignPlatform } from './campaignPlatform';
 import type { CampaignStatus } from './campaignStatus';
 
 export interface Campaign {
-  id: number;
+  id: string;
   name: string;
-  platform: CampaignPlatform;
+  platform: string;
+  displayName: string;
+  accountName: string;
   status: CampaignStatus;
   spend: number;
   clicks: number;
+  impressions: number;
   ctr: number;
   cpc: number;
   leads: number;
+  conversions: number;
   cpa: number;
   roas: number;
   revenue: number;
-  impressions?: number;
-  cpm?: number;
-  conversionRate?: number;
-  budget?: number;
-  startDate?: string;
-  /** @nullable */
-  endDate?: string | null;
+  days: number;
   updatedAt: string;
 }

@@ -22,7 +22,8 @@ router.get("/crm/leads", async (req, res) => {
       const q = search.toLowerCase();
       leads = leads.filter(
         (l) =>
-          l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q),
+          l.name.toLowerCase().includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q),
       );
     }
 
@@ -42,17 +43,25 @@ router.get("/crm/leads", async (req, res) => {
 router.post("/crm/leads", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { name, email, phone, source, campaign, notes } = req.body as Record<string, string>;
+    const { name, email, phone, source, notes, revenue } = req.body as Record<string, string>;
 
     const [created] = await db
       .insert(leadsTable)
-      .values({ userId, name, email, phone, source: source as "google", campaign, notes })
+      .values({
+        userId,
+        name,
+        email,
+        phone,
+        source,
+        notes,
+        revenue: revenue ? parseFloat(revenue) : undefined,
+      })
       .returning();
 
     res.status(201).json({
       ...created,
-      createdAt: created.createdAt.toISOString(),
-      updatedAt: created.updatedAt.toISOString(),
+      createdAt: created!.createdAt.toISOString(),
+      updatedAt: created!.updatedAt.toISOString(),
     });
   } catch (err) {
     req.log.error({ err }, "Failed to create lead");
@@ -66,10 +75,10 @@ router.patch("/crm/leads/:id", async (req, res) => {
     const id = parseInt(req.params["id"]!);
     const { status, notes, revenue } = req.body as Record<string, string>;
 
-    const updates: Partial<typeof leadsTable.$inferInsert> = {};
-    if (status !== undefined) updates.status = status as "new";
-    if (notes !== undefined) updates.notes = notes;
-    if (revenue !== undefined) updates.revenue = Number(revenue);
+    const updates: Record<string, unknown> = {};
+    if (status) updates["status"] = status;
+    if (notes !== undefined) updates["notes"] = notes;
+    if (revenue !== undefined) updates["revenue"] = parseFloat(revenue);
 
     const [updated] = await db
       .update(leadsTable)
@@ -93,30 +102,24 @@ router.patch("/crm/leads/:id", async (req, res) => {
   }
 });
 
-router.get("/crm/summary", async (req, res) => {
+router.delete("/crm/leads/:id", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const leads = await db
-      .select()
-      .from(leadsTable)
-      .where(eq(leadsTable.userId, userId));
+    const id = parseInt(req.params["id"]!);
 
-    const statusLabels = ["new", "contacted", "qualified", "proposal", "won", "lost"] as const;
+    const [deleted] = await db
+      .delete(leadsTable)
+      .where(and(eq(leadsTable.id, id), eq(leadsTable.userId, userId)))
+      .returning();
 
-    const byStatus = statusLabels.map((status) => {
-      const group = leads.filter((l) => l.status === status);
-      const value = group.reduce((s, l) => s + (l.revenue || 0), 0);
-      return { status, count: group.length, value };
-    });
+    if (!deleted) {
+      res.status(404).json({ error: "Lead not found" });
+      return;
+    }
 
-    const wonLeads = leads.filter((l) => l.status === "won");
-    const totalRevenue = wonLeads.reduce((s, l) => s + (l.revenue || 0), 0);
-    const conversionRate = leads.length > 0 ? (wonLeads.length / leads.length) * 100 : 0;
-    const avgDealSize = wonLeads.length > 0 ? totalRevenue / wonLeads.length : 0;
-
-    res.json({ totalLeads: leads.length, byStatus, totalRevenue, conversionRate, avgDealSize });
+    res.json({ success: true });
   } catch (err) {
-    req.log.error({ err }, "Failed to get CRM summary");
+    req.log.error({ err }, "Failed to delete lead");
     res.status(500).json({ error: "Internal server error" });
   }
 });

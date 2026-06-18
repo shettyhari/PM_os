@@ -110,7 +110,7 @@ export default function Dashboard() {
                 </div>
                 <div className="text-3xl font-bold tracking-tight">
                   {kpi.unit === "currency" ? formatCurrency(kpi.value) :
-                   kpi.unit === "percentage" ? formatPercentage(kpi.value * 100) :
+                   kpi.unit === "percentage" ? `${kpi.value.toFixed(2)}%` :
                    kpi.unit === "multiplier" ? `${kpi.value}x` :
                    formatNumber(kpi.value)}
                 </div>

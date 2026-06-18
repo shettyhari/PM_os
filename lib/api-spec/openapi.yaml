@@ -1179,15 +1179,18 @@ components:
     # ─── CAMPAIGNS ───────────────────────────────────────────────
     Campaign:
       type: object
-      required: [id, name, platform, status, spend, clicks, ctr, cpc, leads, cpa, roas, revenue, updatedAt]
+      required: [id, name, platform, displayName, accountName, status, spend, clicks, impressions, ctr, cpc, leads, conversions, cpa, roas, revenue, days, updatedAt]
       properties:
         id:
-          type: integer
+          type: string
         name:
           type: string
         platform:
           type: string
-          enum: [google, meta, linkedin, microsoft]
+        displayName:
+          type: string
+        accountName:
+          type: string
         status:
           type: string
           enum: [active, paused, ended, draft]
@@ -1195,11 +1198,15 @@ components:
           type: number
         clicks:
           type: integer
+        impressions:
+          type: integer
         ctr:
           type: number
         cpc:
           type: number
         leads:
+          type: integer
+        conversions:
           type: integer
         cpa:
           type: number
@@ -1207,18 +1214,8 @@ components:
           type: number
         revenue:
           type: number
-        impressions:
+        days:
           type: integer
-        cpm:
-          type: number
-        conversionRate:
-          type: number
-        budget:
-          type: number
-        startDate:
-          type: string
-        endDate:
-          type: ["string", "null"]
         updatedAt:
           type: string
 

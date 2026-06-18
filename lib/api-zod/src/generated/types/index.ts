@@ -21,7 +21,6 @@ export * from './beginBrowserLoginParams';
 export * from './campaign';
 export * from './campaignInput';
 export * from './campaignInputPlatform';
-export * from './campaignPlatform';
 export * from './campaignStatus';
 export * from './campaignUpdate';
 export * from './campaignUpdateStatus';
